@@ -1,0 +1,41 @@
+---
+title: "Data_Preparation"
+author: "Griffin Pitts"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(here)
+library(stars)
+library(readxl)
+library(tensorflow)
+library(keras)
+```
+
+## Data Locations
+
+```{r}
+# Manual Entry - Delete Later
+#data_loc <- here('/Users/w.pitts/Desktop/data_testing/Lyons_data')
+#data_files <- list.files(data_loc)
+
+#a <- here('/Users/w.pitts/Desktop/data_testing/Lyons_data/a')
+#c<- here('/Users/w.pitts/Desktop/data_testing/Lyons_data/c')
+#d<- here('/Users/w.pitts/Desktop/data_testing/Lyons_data/d')
+#e<- here('/Users/w.pitts/Desktop/data_testing/Lyons_data/e')
+#w<- here('/Users/w.pitts/Desktop/data_testing/Lyons_data/w')
+
+data_dir <- here('/Users/w.pitts/Desktop/data_testing/Lyons_data')
+if(!file.exists(data_dir)){download.file('https://www.dropbox.com/s/s9r5swg89crcd1v/Lyons%202021%20-%20Ceramic%20Thin%20Section%20Deep%20Learning%20Dataset.zip?dl=1',
+                data_dir)
+}
+
+library("jpeg")
+jj <- readJPEG("/Users/w.pitts/Desktop/data_testing/Lyons_data/a/15-604_xp_000013.jpg",native=TRUE)
+plot(0:1,0:1,type="n",ann=FALSE,axes=FALSE)
+rasterImage(jj,0,0,1,1)
+
+```
+
