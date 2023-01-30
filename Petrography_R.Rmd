@@ -8,10 +8,9 @@ output: html_document
 ```{r setup, include=FALSE}
 library(tidyverse)
 library(here)
-library(stars)
-library(readxl)
-library(tensorflow)
-library(keras)
+library(OpenImageR)
+library(SuperpixelImageSegmentation)
+library(jpeg)
 ```
 
 
@@ -30,10 +29,121 @@ if(!file.exists(data_dir)){
 }
 ```
 
-library("jpeg")
-jj <- readJPEG("/Users/w.pitts/Desktop/data_testing/Lyons_data/a/15-604_xp_000013.jpg",native=TRUE)
-plot(0:1,0:1,type="n",ann=FALSE,axes=FALSE)
-rasterImage(jj,0,0,1,1)
+## Import
 
+Read in a sample image.
+```{r}
+path <- here(data_dir, 'a', '15-604_xp_000013.jpg')
+im <- readImage(path)
 ```
+
+Check its dimensions.
+```{r}
+dim(im)
+```
+
+This opens up an interactive viewer.
+```{r}
+#imageShow(path)
+```
+
+Alternative using the `jpeg` package.
+
+```{r}
+jj <- readJPEG(path, native = TRUE)
+
+plot(0:1,0:1,type="n",ann=FALSE,axes=FALSE) ; rasterImage(jj,0,0,1,1)
+```
+
+## Segmentation
+
+This example is taken from [Image segmentation based on Superpixels and Clustering](https://mlampros.github.io/OpenImageR/articles/Image_segmentation_superpixels_clustering.html) vignette on the `OpenImageR` website.
+
+```{r}
+res_slic <- superpixels(input_image = im,
+                       method = "slic",
+                       superpixel = 200, 
+                       compactness = 20,
+                       return_slic_data = TRUE,
+                       return_labels = TRUE, 
+                       write_slic = "", 
+                       verbose = TRUE)
+
+res_slico <- superpixels(input_image = im,
+                        method = "slico",
+                        superpixel = 200, 
+                        return_slic_data = TRUE,
+                        return_labels = TRUE, 
+                        write_slic = "", 
+                        verbose = TRUE)
+```
+```{r}
+par(mfrow=c(1,2), mar = c(0.2, 0.2, 0.2, 0.2))
+
+plot_slic = OpenImageR::NormalizeObject(res_slic$slic_data)
+plot_slic = grDevices::as.raster(plot_slic)
+graphics::plot(plot_slic)
+
+plot_slico = OpenImageR::NormalizeObject(res_slico$slic_data)
+plot_slico = grDevices::as.raster(plot_slico)
+graphics::plot(plot_slico)
+```
+
+Try more advanced methods from `SuperpixelImageSegmentation`. (Need to run the image commands in the console to work)
+
+
+```{r}
+init = Image_Segmentation$new()
+
+spx = init$spixel_segmentation(input_image = im, 
+                               superpixel = 600, 
+                               AP_data = TRUE,
+                               use_median = TRUE, 
+                               sim_wL = 3, 
+                               sim_wA = 10, 
+                               sim_wB = 10,
+                               sim_color_radius = 10, 
+                               verbose = TRUE)
+
+imageShow(spx$AP_image_data)
+```
+
+```{r}
+spx_km = init$spixel_segmentation(input_image = im, 
+                                  superpixel = 600, 
+                                  AP_data = TRUE,
+                                  use_median = TRUE, 
+                                  sim_wL = 3, 
+                                  sim_wA = 10, 
+                                  sim_wB = 10,
+                                  sim_color_radius = 10, 
+                                  kmeans_method = "kmeans",
+                                  kmeans_initializer = "kmeans++",
+                                  kmeans_num_init = 3, 
+                                  kmeans_max_iters = 100,
+                                  verbose = TRUE)
+
+imageShow(spx_km$AP_image_data)
+```
+
+```{r}
+spx_mbkm = init$spixel_segmentation(input_image = im, 
+                                    superpixel = 600, 
+                                    AP_data = TRUE,
+                                    use_median = TRUE, 
+                                    sim_wL = 3, 
+                                    sim_wA = 10, 
+                                    sim_wB = 10,
+                                    sim_color_radius = 10, 
+                                    kmeans_method = "mini_batch_kmeans",
+                                    kmeans_initializer = "kmeans++",
+                                    kmeans_num_init = 3, 
+                                    kmeans_max_iters = 100,
+                                    minib_kmeans_batch = 10, 
+                                    minib_kmeans_init_fraction = 0.75,
+                                    verbose = TRUE)
+
+imageShow(spx_mbkm$KMeans_image_data)
+```
+
 
