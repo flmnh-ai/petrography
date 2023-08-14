@@ -1,0 +1,152 @@
+---
+title: "Image Data Generator"
+format: html
+editor: visual
+---
+
+```{r}
+library(tensorflow)
+library(tfdatasets)
+library(keras)
+```
+
+```{r}
+list_ds <- file_list_dataset(file.path('data/Lyons_data', '*', '*'))
+
+```
+
+```{r}
+# Reads an image from a file, decodes it into a dense tensor, and resizes it
+# to a fixed shape.
+
+parse_image <- function(filename) {
+  parts <- tf$strings$split(filename, "/")
+  label <- parts[-2]
+
+  image <- tf$io$read_file(filename)
+  image <- tf$io$decode_jpeg(image) # channels = 3?
+  image <- tf$image$convert_image_dtype(image, tf$float32)
+  image <- tf$image$resize(image, shape(512, 512))
+  
+  list(image, label)
+}
+```
+
+```{r}
+parsed <- list_ds %>% 
+  reticulate::as_iterator() %>% 
+  reticulate::iter_next() %>%
+  parse_image()
+
+show <- function(parsed, maxcolor=1) {  
+  plot(as.raster(as.array(parsed[[1]]), max = maxcolor))
+  title(as.character(parsed[[2]]))
+}
+
+show(parsed)
+```
+
+```{r}
+images_ds <- list_ds %>% 
+  dataset_map(parse_image)
+
+images_ds %>% 
+  dataset_take(10) %>% 
+  coro::collect() %>% 
+  lapply(show)
+```
+
+```{r}
+images_ds
+```
+
+https://blogs.rstudio.com/ai/posts/2017-12-14-image-classification-on-small-datasets/
+
+```{r}
+conv_base <- application_vgg16(weights = 'imagenet', include_top = FALSE, input_shape = c(512, 512, 3))
+```
+
+```{r}
+summary(conv_base)
+```
+
+```{r}
+model <- keras_model_sequential() %>%
+  conv_base() %>%
+  layer_global_average_pooling_2d() %>%
+  layer_dense(units = 1024, activation = 'relu') %>%
+  layer_dense(units = 512, activation = 'relu') %>%
+  layer_dense(units = 5, activation = 'softmax')
+```
+
+```{r}
+summary(model)
+```
+
+```{r}
+length(model$trainable_weights)
+```
+
+```{r}
+freeze_weights(conv_base)
+length(model$trainable_weights)
+```
+
+```{r}
+train_datagen = image_data_generator(
+  rescale = 1/255,
+  #rotation_range = 180,
+  #brightness_range = 0.5,
+ # zoom_range = 0.5,
+#  horizontal_flip = TRUE,
+#  vertical_flip = TRUE,
+ # fill_mode = "nearest"
+)
+```
+
+```{r}
+train_generator <- flow_images_from_directory(
+  'data/Lyons_data',                  # Target directory  
+  train_datagen,              # Data generator
+  target_size = c(512, 512),  # Resizes all images to 150 × 150
+  batch_size = 20,
+  class_mode = "categorical"       # categorical_crossentropy loss for binary labels
+)
+
+
+model %>% compile(
+  loss = "categorical_crossentropy",
+  optimizer = optimizer_adam(learning_rate = 0.003),
+  metrics = c("accuracy")
+)
+
+history <- model %>% fit(
+  train_generator,
+ # steps_per_epoch = 100,
+  epochs = 30#,
+#  validation_data = validation_generator,
+ # validation_steps = 50
+)
+
+
+```
+
+```{r}
+unfreeze_weights(conv_base, from = "block3_conv1")
+```
+
+```{r}
+model %>% compile(
+  loss = "binary_crossentropy",
+  optimizer = optimizer_rmsprop(lr = 1e-5),
+  metrics = c("accuracy")
+)
+
+history <- model %>% fit_generator(
+  train_generator,
+  #steps_per_epoch = 100,
+  epochs = 100#,
+  #validation_data = validation_generator,
+  #validation_steps = 50
+)
+```
