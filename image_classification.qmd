@@ -4,60 +4,15 @@ format: html
 editor: visual
 ---
 
-```{r}
+```{r setup}
 library(tensorflow)
 library(tfdatasets)
 library(keras)
+library(here)
 ```
 
 ```{r}
-list_ds <- file_list_dataset(file.path('data/Lyons_data', '*', '*'))
-
-```
-
-```{r}
-# Reads an image from a file, decodes it into a dense tensor, and resizes it
-# to a fixed shape.
-
-parse_image <- function(filename) {
-  parts <- tf$strings$split(filename, "/")
-  label <- parts[-2]
-
-  image <- tf$io$read_file(filename)
-  image <- tf$io$decode_jpeg(image) # channels = 3?
-  image <- tf$image$convert_image_dtype(image, tf$float32)
-  image <- tf$image$resize(image, shape(512, 512))
-  
-  list(image, label)
-}
-```
-
-```{r}
-parsed <- list_ds %>% 
-  reticulate::as_iterator() %>% 
-  reticulate::iter_next() %>%
-  parse_image()
-
-show <- function(parsed, maxcolor=1) {  
-  plot(as.raster(as.array(parsed[[1]]), max = maxcolor))
-  title(as.character(parsed[[2]]))
-}
-
-show(parsed)
-```
-
-```{r}
-images_ds <- list_ds %>% 
-  dataset_map(parse_image)
-
-images_ds %>% 
-  dataset_take(10) %>% 
-  coro::collect() %>% 
-  lapply(show)
-```
-
-```{r}
-images_ds
+image_dir <- here('data/Lyons_data') 
 ```
 
 https://blogs.rstudio.com/ai/posts/2017-12-14-image-classification-on-small-datasets/
@@ -94,7 +49,7 @@ length(model$trainable_weights)
 
 ```{r}
 train_datagen = image_data_generator(
-  rescale = 1/255,
+  rescale = 1/255.0,
   #rotation_range = 180,
   #brightness_range = 0.5,
  # zoom_range = 0.5,
@@ -106,13 +61,16 @@ train_datagen = image_data_generator(
 
 ```{r}
 train_generator <- flow_images_from_directory(
-  'data/Lyons_data',                  # Target directory  
+  image_dir,                  # Target directory  
   train_datagen,              # Data generator
   target_size = c(512, 512),  # Resizes all images to 150 × 150
-  batch_size = 20,
-  class_mode = "categorical"       # categorical_crossentropy loss for binary labels
+  batch_size = 16,
+  class_mode = "categorical"  # multiclass classification
 )
 
+test <- generator_next(train_generator)
+
+test[[2]]
 
 model %>% compile(
   loss = "categorical_crossentropy",
