@@ -14,6 +14,16 @@ In this notebook, we'll go through the process of loading and visualizing thin s
 
 ## Setup and Install Necessary Libraries
 
+```{r eval=FALSE, include=FALSE}
+# Download and install the necessary libraries and frameworks
+# You only  have to do this once, so this chunk isn't run by default
+install.packages("remotes")
+remotes::install_github(sprintf("rstudio/%s", c("reticulate", "tensorflow", "keras")))
+reticulate::miniconda_uninstall() # start with a blank slate
+reticulate::install_miniconda()
+keras::install_keras()
+```
+
 ```{r, setup, message=FALSE}
 library(tensorflow)
 library(keras)
@@ -28,7 +38,7 @@ The above libraries have distinct functions:
 
 -   **`here`** simplifies path management in R, ensuring robust paths regardless of the working directory or operating system.
 
-Go [to this link](https:://tensorflow.rstudio.com/install/) for instructions on how to download these packages if installing them through R Studio the normal way doesn't work.
+Go [to this link](https://tensorflow.rstudio.com/install/) for instructions on how to download these packages if installing them the first time doesn't work using the code above.
 
 ## Data Loading
 
