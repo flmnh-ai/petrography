@@ -100,7 +100,7 @@ model %>% compile(
   metrics = c("accuracy")
 )
 
-history <- model %>% fit_generator(
+history <- model %>% fit(
   train_generator,
   #steps_per_epoch = 100,
   epochs = 100#,
