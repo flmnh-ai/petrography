@@ -21,7 +21,13 @@ install.packages("remotes")
 remotes::install_github(sprintf("rstudio/%s", c("reticulate", "tensorflow", "keras")))
 reticulate::miniconda_uninstall() # start with a blank slate
 reticulate::install_miniconda()
+keras::install_keras(method = 'conda', conda = reticulate::conda_binary())
+reticulate::conda_list()
+# test installation
 keras::install_keras()
+tensorflow::as_tensor("Hello World")
+
+reticulate::miniconda_path()
 ```
 
 ```{r, setup, message=FALSE}
@@ -52,9 +58,9 @@ Before we move forward, we should check if the data is already present in our di
 ```{r}
 if(!file.exists(image_dir)){
   options(timeout = 180) # Increase this "timeout" number for slower internet connections
-  download.file('https://www.dropbox.com/sh/e4r2fnfq3gspytk/AACGGyuKY5xgKv3UAVWdXSG-a?dl=1',
+  download.file('
+}https://www.dropbox.com/sh/e4r2fnfq3gspytk/AACGGyuKY5xgKv3UAVWdXSG-a?dl=1',
                 image_dir)
-}
 ```
 
 These data are kindly provided by Mike Lyon from his excellent paper [Ceramic Fabric Classification of Petrographic Thin Sections with Deep Learning](https://journal.caa-international.org/articles/10.5334/jcaa.75). Check it out for more details on the dataset and archaeological context.
@@ -123,13 +129,17 @@ The class labels are also stored as matrix. For the image labels the dimensions 
 labels[1:4,]
 ```
 
-This format is known as "one-hot encoding". What does this mean? For a 5-class problem, instead of labels being 1, 2, or 3, they'd look like:
+This format is known as "one-hot encoding". What does this mean? For a 5-class problem, instead of labels being 1, 2, 3, etc., they'd look like:
 
 -   Class 1: \[1, 0, 0, 0, 0\]
 
 -   Class 2: \[0, 1, 0, 0, 0\]
 
 -   Class 3: \[0, 0, 1, 0, 0\]
+
+-   Class 4: \[0, 0, 0, 1, 0\]
+
+-   Class 5: \[0, 0, 0, 0, 1\]
 
 This format is especially helpful for multi-class classification tasks and is more compatible with how neural networks work -- it's basically a way of using numbers to represent categories
 
