@@ -1,24 +1,90 @@
 ---
-title: "Image Data Generator"
+title: "Image Classification"
 format: html
 editor: visual
 ---
 
+## Setup
+
 ```{r setup}
+#reticulate::use_miniconda('r-reticulate')
 library(tensorflow)
 library(tfdatasets)
 library(keras)
 library(here)
-```
+# if you get an error about missing python packages, here's how to fix that
+#reticulate::conda_install('r-reticulate', 'Pillow')
+#reticulate::conda_install('r-reticulate', 'scipy')
+#reticulate::conda_install('r-reticulate', 'pydot')
 
-```{r}
+# path to image data
 image_dir <- here('data/Lyons_data') 
 ```
 
-https://blogs.rstudio.com/ai/posts/2017-12-14-image-classification-on-small-datasets/
+## Data import
 
 ```{r}
-conv_base <- application_vgg16(weights = 'imagenet', include_top = FALSE, input_shape = c(512, 512, 3))
+image_size <- c(512, 512)
+batch_size <- 16
+
+image_data <- image_dataset_from_directory(
+    image_dir,
+    label_mode = 'categorical',
+    validation_split = 0.2,
+    subset = "both",
+    seed = 1337,
+    interpolation = 'nearest',
+    image_size = image_size,
+    batch_size = batch_size,
+)
+
+train_ds <- image_data[[1]]
+val_ds <- image_data[[2]]
+```
+
+```{r}
+# Prefetching samples in GPU memory helps maximize GPU utilization.
+train_ds %<>% dataset_prefetch()
+val_ds   %<>% dataset_prefetch()
+```
+
+```{r}
+batch <- train_ds %>%
+  as_iterator() %>%
+  iter_next()
+
+str(batch)
+```
+
+```{r}
+c(images, labels) %<-% batch
+```
+
+```{r}
+display_image_tensor <- function(x, ..., max = 255,
+                                 plot_margins = c(0, 0, 0, 0)) {
+  if(!is.null(plot_margins))
+    par(mar = plot_margins)
+
+  x %>%
+    as.array() %>%
+    drop() %>%
+    as.raster(max = max) %>%
+    plot(..., interpolate = FALSE)
+}
+
+par(mfrow = c(3, 3))
+for (i in 1:9)
+  display_image_tensor(images[i,,,],
+                       plot_margins = rep(.5, 4))
+```
+
+## Model specification
+
+```{r}
+conv_base <- application_vgg16(weights = 'imagenet', 
+                               include_top = FALSE,
+                               input_shape = c(512, 512, 3))
 ```
 
 ```{r}
@@ -26,7 +92,8 @@ summary(conv_base)
 ```
 
 ```{r}
-model <- keras_model_sequential() %>%
+model <-  keras_model_sequential(input_shape = c(image_size, 3)) %>%
+  layer_rescaling(1./255) %>%
   conv_base() %>%
   layer_global_average_pooling_2d() %>%
   layer_dense(units = 1024, activation = 'relu') %>%
@@ -42,52 +109,58 @@ summary(model)
 length(model$trainable_weights)
 ```
 
+## Transfer learning
+
+Freeze the convolutional base so we can just train the classifier.
+
 ```{r}
 freeze_weights(conv_base)
 length(model$trainable_weights)
 ```
 
+Calculate class weights to handle unbalanced classes
+
 ```{r}
-train_datagen = image_data_generator(
-  rescale = 1/255.0,
-  #rotation_range = 180,
-  #brightness_range = 0.5,
- # zoom_range = 0.5,
-#  horizontal_flip = TRUE,
-#  vertical_flip = TRUE,
- # fill_mode = "nearest"
-)
+class_counts <- list.files(image_dir, full.names = TRUE) %>%
+  purrr::map(~length(list.files(.x))) %>% 
+  setNames(0:4)
+
+totals <- purrr::reduce(class_counts, sum)
+
+class_weights <- purrr::map(class_counts, ~totals / .x)
+min_weight <- min(unlist(class_weights))
+class_weights <- purrr::map(class_weights, ~.x/min_weight)
+class_weights
 ```
 
 ```{r}
-train_generator <- flow_images_from_directory(
-  image_dir,                  # Target directory  
-  train_datagen,              # Data generator
-  target_size = c(512, 512),  # Resizes all images to 150 × 150
-  batch_size = 16,
-  class_mode = "categorical"  # multiclass classification
-)
-
-test <- generator_next(train_generator)
-
-test[[2]]
-
 model %>% compile(
   loss = "categorical_crossentropy",
-  optimizer = optimizer_adam(learning_rate = 0.003),
+  optimizer = optimizer_adam(),
   metrics = c("accuracy")
 )
 
 history <- model %>% fit(
-  train_generator,
- # steps_per_epoch = 100,
-  epochs = 30#,
-#  validation_data = validation_generator,
- # validation_steps = 50
+  train_ds,
+  epochs = 50,
+  class_weight = class_weights,
+  validation_data = val_ds
 )
-
-
 ```
+
+```{r}
+plot(history)
+```
+
+```{r}
+model %>%
+  evaluate(train_ds,
+           val_ds) # should be test set ultimately
+```
+
+## Fine tuning
+
+Not that necessary because the model already performs well!
 
 ```{r}
 unfreeze_weights(conv_base, from = "block3_conv1")
@@ -95,16 +168,31 @@ unfreeze_weights(conv_base, from = "block3_conv1")
 
 ```{r}
 model %>% compile(
-  loss = "binary_crossentropy",
-  optimizer = optimizer_rmsprop(lr = 1e-5),
+  loss = "categorical_crossentropy",
+  optimizer = optimizer_adam(learning_rate = 1e-5),
   metrics = c("accuracy")
 )
 
 history <- model %>% fit(
-  train_generator,
-  #steps_per_epoch = 100,
-  epochs = 100#,
-  #validation_data = validation_generator,
-  #validation_steps = 50
+  train_ds,
+  epochs = 10,
+  class_weight = class_weights,
+  validation_data = val_ds
 )
+```
+
+```{r}
+model %>%
+  evaluate(train_ds,
+           val_ds) 
+```
+
+## Evaluation
+
+Predicted classes of the val set, need to compare to actual values.
+
+```{r}
+model %>% 
+  predict(val_ds) %>% 
+  k_argmax()
 ```
