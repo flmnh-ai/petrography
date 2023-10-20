@@ -189,10 +189,102 @@ model %>%
 
 ## Evaluation
 
-Predicted classes of the val set, need to compare to actual values.
+Compare the predicted and actual classes of the validation set using a confusion matrix
 
 ```{r}
-model %>% 
-  predict(val_ds) %>% 
-  k_argmax()
+# Initialize iterator
+val_iterator <- as_iterator(val_ds)
+
+# Initialize an empty list to store individual tibbles
+results_list <- list()
+
+# Loop through the batches
+while (TRUE) {
+  # Get the next batch
+  batch <- iter_next(val_iterator)
+  
+  # Exit loop if there are no more batches
+  if (is.null(batch)) {
+    break
+  }
+  # Get the predictions for the current batch
+  predicted <- model %>% 
+    predict(batch[[1]]) %>%
+    k_argmax() %>% as.array()
+  
+  # Get the actual labels for the current batch
+  actual <- batch[[2]] %>% 
+    k_argmax() %>% as.array()
+  
+  # Create a tibble for the current batch and add it to the list
+  results_list[[length(results_list) + 1]] <- tibble::tibble(predicted = predicted, actual = actual)
+}
+
+# Combine all the tibbles into one
+all_results <- dplyr::bind_rows(results_list)
+
+# Calculate and display the confusion matrix
+table(all_results)
+```
+
+Visualize how the model is learning.
+
+```{r}
+display_image_tensor(batch[[1]][2,,,])
+```
+
+```{r, fig.asp = 1, fig.height=20}
+last_conv_layer <- get_layer(conv_base, 'block5_conv3')
+last_conv_layer_model <- keras_model(conv_base$inputs, last_conv_layer$output)
+classifier_input <- layer_input(batch_shape = last_conv_layer$output$shape)
+
+x <- classifier_input
+for (layer_name in c('global_average_pooling2d', 'dense_2', 'dense_1', 'dense')) { 
+    x <- get_layer(model, layer_name)(x)
+}
+  
+classifier_model <- keras_model(classifier_input, x)
+
+plot_activations <- function(x, ...) {
+  x <- as.array(x)
+  if(sum(x) == 0)
+    return(plot(as.raster("gray")))
+  rotate <- function(x) t(apply(x, 2, rev))
+  image(rotate(x), asp = 1, axes = FALSE, useRaster = TRUE, col = terrain.colors(256), ...)
+}
+
+grad_cam <- function(image){
+  preprocessed_img <- image[tf$newaxis, , , ] / 255
+  
+  with (tf$GradientTape() %as% tape, {
+    last_conv_layer_output <- last_conv_layer_model(preprocessed_img)
+    tape$watch(last_conv_layer_output)
+    preds <- classifier_model(last_conv_layer_output)
+    top_pred_index <- tf$argmax(preds[1, ])
+    top_class_channel <- preds[, top_pred_index, style = 'python']
+    
+    
+    grads <- tape$gradient(top_class_channel, last_conv_layer_output)
+    
+    pooled_grads <- mean(grads, axis = c(1,2,3), keepdims = TRUE)
+    
+    heatmap <-
+      (last_conv_layer_output * pooled_grads) %>%
+      mean(axis = -1) %>%
+      .[1,,]
+    
+    pal <- hcl.colors(256, palette = 'Spectral', alpha = 0.25, rev = TRUE)
+    heatmap <- as.array(heatmap)
+    heatmap[] <- pal[cut(heatmap, 256)]
+    heatmap <- as.raster(heatmap)
+    
+    display_image_tensor(image);rasterImage(heatmap, 0, 0, ncol(image), nrow(image), interpolate = FALSE)
+  })
+}
+
+batch <- val_ds %>% as_iterator() %>% iter_next()
+
+par(mfrow = c(3, 3))
+purrr::walk(1:9, ~grad_cam(batch[[1]][.x,,,]))
+purrr::walk(1:9, ~display_image_tensor(batch[[1]][.x,,,]))
 ```
