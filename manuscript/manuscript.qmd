@@ -1,0 +1,91 @@
+---
+title: "Enhancing Ceramic Petrography Through Deep Learning"
+author: 
+  - name: Ashley Rutkoski
+    affiliation:
+      - ref: flmnh
+  - name: Nicolas Gauthier
+    email: nicolas.gauthier@ufl.edu
+    affiliations:
+      - ref: flmnh
+    attributes:
+      corresponding: true
+  - name: Neill Wallis
+    affiliations:
+      - ref: flmnh
+  - name: Andrea Torvinen
+    affiliations:
+      - ref: flmnh
+  - name: Ann Cordell
+    affiliation:
+       - ref: flmnh
+affiliations:
+  - id: flmnh
+    name: University of Florida
+    department: Florida Museum of Natural History
+    address: 1659 Museum Road
+    city: Gainesville
+    state: FL
+    postal-code: 32611-7800
+abstract: |
+  Clay recipes reveal information about the local geology and the inclusion of different additives that make up a vessel, which in turn reflects the social, environmental, and technological context of ceramic manufacture. Ceramic petrography has long been instrumental in shedding light on key manufacturing techniques, identifying unique mineralogical signatures, and assessing patterns of cultural exchange among diverse communities. However, traditional methods used to characterize and quantify petrographic thin sections can be labor intensive and time consuming, making it difficult to meet the increasing demand for large comparative datasets. Here, we present recently developed machine-learning algorithms to enhance the efficiency, accuracy, and accessibility of these intricate analyses. We review the basics steps for conducting these approaches and illustrate its practical application for being incorporated into a petrographer’s standard toolkit. Streamlining petrographic workflows through machine-learning techniques will open new avenues for the quantitative and qualitative assessment of ceramic technology and its broader implications for past societies.
+keywords: 
+  - computer vision
+  - thin sections
+  - image analysis
+date: last-modified
+bibliography: bibliography.bib
+format:
+  elsevier-pdf:
+    keep-tex: true
+    journal:
+      name: Journal of Archaeological Science
+      formatting: preprint
+      model: 3p
+      cite-style: authoryear
+editor: visual
+---
+
+## Introduction
+
+## Methods
+
+[@lyons2021]
+
+[@rubo2019]
+
+[@aprile2014]
+
+[@lopez2015]
+
+### Petrographic thin sections
+
+### Image acquisition
+
+### Deep learning
+
+#### Image classification
+
+#### Semantic segmentation
+
+[@wu2019detectron]
+
+#### Instance segmentation
+
+#### Panoptic segmentation
+
+## Results
+
+#### Image classification
+
+#### Semantic segmentation
+
+#### Instance segmentation
+
+#### Panoptic segmentation
+
+## Discussion
+
+### Future work
+
+## References
