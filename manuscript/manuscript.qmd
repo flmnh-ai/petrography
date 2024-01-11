@@ -48,6 +48,20 @@ editor: visual
 
 ## Introduction
 
+[this section should convey the use and importance of ceramic petrography in archaeology and why it has within remained valuable even with the advent of new technology and compositional methods]{style="color:red;"}
+
+The use of compositional studies like INAA, XRD, and Petrography in archaeology today seems rather common place, as it is routinely employed to identify and quantify the mineralogical make up of ceramic artifacts. Since the early 1930s, the application of thin-section petrography in archaeology has been extremely valuable in providing a glimpse into the ceramic production process and information about the broader communities in which it was formed. The dynamic environment, that formed the clay and various additives used global to temper ceramics, and the complex pottery traditions that existed in the past ultimately influenced quantity and types of inclusion documented in the clay recipes.
+
+[what can we learn from ceramic petrography and how does it differ and surpass the new technological methods i.e., is it cheaper? why has it remained important and in use]{style="color:red;"}
+
+Compositional studies, generally broken down into two approaches mineralogical (e.g., petrography, XRD, etc.) or geochemical (e.g., INAA, ), have been the key to identifying the inclusions and voids that provide information about the past communities that archaeologists are trying to study by identifying variability in recipes and unique geological features that can connect manufacturing locations and the social network in which vessels operate within.
+
+the use of this "traditional" method i.e., thin section petrography has continued to persist even with the rise of technology and increased accessibility of other elemental compositional methods.
+
+[despite these advantages what are the current issues facing petrography..... standardization, smaller sample sizes give the time commitment, etc. ask Andrea about this eventually after researching]{style="color:red;"}
+
+[the development of AI and how it can be used in different disciplines]{style="color:red;"}
+
 ## Methods
 
 [@lyons2021]
