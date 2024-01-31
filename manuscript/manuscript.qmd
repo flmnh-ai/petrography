@@ -74,13 +74,33 @@ the use of this "traditional" method i.e., thin section petrography has continue
 
 ### Petrographic thin sections
 
+legacy type(?) collections from Florida Museum of Natural History ceramic technology lab. Primarily from southeast US, selected to sample variety of fabric/paste/temper/vessel types (double check with Anne)
+
 ### Image acquisition
+
+uses scanner protocol from @leung2023:
+- slide scanner, custom 3d-printed slide holder. uses 3d-printed slide holder to keep slides flat and in place. circularly polarized filters to make results independent of rotation.
+- resulting resolution of xxx dpi, with effective microscope zoom level of yyy
+- 24-bit color depth, 8-bit per channel
+- color correction by hand in scanner software
+- saved as tiff files
+- scanned images freely available from FLMNH at [link]
+
+### Labeling
+
+custom masks labeled in cvat by trained petrographers. labels include:
+- 3 types, void, inclusion, and matrix
+- (maybe eventually more than one inclusion type)
+- labels on sample images from @lyons2021 (but maybe do cordell data later?)
+- labels saved as json files
+- use segment anything model integration in cvat to make precise labels/masks from user inputs
+- peer review of labels by other petrographers
 
 ### Deep learning
 
-#### Image classification
+Adapted basic approach from @lyons2021, invovling pretrained vgg19 (or resnet?) backbone and custom head for segmentation/classification.
+- use tensoflow/keras for r
 
-#### Semantic segmentation
 
 [@wu2019detectron]
 
@@ -90,9 +110,6 @@ the use of this "traditional" method i.e., thin section petrography has continue
 
 ## Results
 
-#### Image classification
-
-#### Semantic segmentation
 
 #### Instance segmentation
 
