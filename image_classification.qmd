@@ -8,14 +8,13 @@ editor: visual
 
 ```{r setup}
 #reticulate::use_miniconda('r-reticulate')
-library(tensorflow)
+#library(tensorflow)
+library(keras3)
 library(tfdatasets)
-library(keras)
+library(reticulate)
+#keras3::install_keras(gpu = TRUE, backend = 'tensorflow')
+#library(tfdatasets)
 library(here)
-# if you get an error about missing python packages, here's how to fix that
-#reticulate::conda_install('r-reticulate', 'Pillow')
-#reticulate::conda_install('r-reticulate', 'scipy')
-#reticulate::conda_install('r-reticulate', 'pydot')
 
 # path to image data
 image_dir <- here('data/Lyons_data') 
@@ -24,7 +23,7 @@ image_dir <- here('data/Lyons_data')
 ## Data import
 
 ```{r}
-image_size <- c(512, 512)
+image_size <- c(512L, 512L)
 batch_size <- 16
 
 image_data <- image_dataset_from_directory(
@@ -84,7 +83,7 @@ for (i in 1:9)
 ```{r}
 conv_base <- application_vgg16(weights = 'imagenet', 
                                include_top = FALSE,
-                               input_shape = c(512, 512, 3))
+                               input_shape = c(512L, 512L, 3L))
 ```
 
 ```{r}
@@ -107,6 +106,10 @@ summary(model)
 
 ```{r}
 length(model$trainable_weights)
+```
+
+```{r}
+plot(model)
 ```
 
 ## Transfer learning
@@ -142,7 +145,7 @@ model %>% compile(
 
 history <- model %>% fit(
   train_ds,
-  epochs = 50,
+  epochs = 10,
   class_weight = class_weights,
   validation_data = val_ds
 )
@@ -210,11 +213,11 @@ while (TRUE) {
   # Get the predictions for the current batch
   predicted <- model %>% 
     predict(batch[[1]]) %>%
-    k_argmax() %>% as.array()
+    op_argmax() %>% as.array()
   
   # Get the actual labels for the current batch
   actual <- batch[[2]] %>% 
-    k_argmax() %>% as.array()
+    op_argmax() %>% as.array()
   
   # Create a tibble for the current batch and add it to the list
   results_list[[length(results_list) + 1]] <- tibble::tibble(predicted = predicted, actual = actual)
@@ -228,10 +231,6 @@ table(all_results)
 ```
 
 Visualize how the model is learning.
-
-```{r}
-display_image_tensor(batch[[1]][2,,,])
-```
 
 ```{r, fig.asp = 1, fig.height=20}
 last_conv_layer <- get_layer(conv_base, 'block5_conv3')
