@@ -29,7 +29,7 @@ The above libraries have distinct functions:
 -   **`here`** simplifies path management in R, ensuring robust paths
     regardless of the working directory or operating system.
 
-Go [to this link](https:://tensorflow.rstudio.com/install/) for
+Go [to this link](https://tensorflow.rstudio.com/install/) for
 instructions on how to download these packages if installing them
 through R Studio the normal way doesn’t work.
 
