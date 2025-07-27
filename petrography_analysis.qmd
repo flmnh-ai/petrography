@@ -1,0 +1,405 @@
+---
+title: "Petrographic Image Analysis with Detectron2 and SAHI"
+format: html
+editor: visual
+---
+
+**Main analysis workflow** for petrographic thin section images using Detectron2 with SAHI. This notebook provides a complete pipeline from model evaluation to morphological analysis with clean R-Python integration.
+
+**Key Features:**
+
+-   Python-based ML with Detectron2 + SAHI for detection
+
+-   R-based analysis and visualization with tidyverse
+
+-   Clean interface through `petrography_simple.R` functions
+
+-   Comprehensive morphological property analysis
+
+## Setup and Dependencies
+
+```{r setup}
+library(magick)
+library(reticulate) 
+library(tidyverse)
+library(scico)
+library(patchwork)
+library(glue)
+
+# Setup Python dependencies using py_require for robust installation
+py_require(c('sahi', 'torch', 'torchvision', 'opencv-python', 'scikit-image', 'pandas'))
+
+# Install detectron2 from specific commit for stability
+py_require('detectron2@git+https://github.com/facebookresearch/detectron2.git@4fa166c043ca45359cd7080523b7122e7e0f9d91')
+
+# Import Python modules for direct reticulate access
+sahi <- import("sahi")
+skimage <- import("skimage")
+
+# Load R helper functions with direct reticulate calls
+source('R/petrography_simple.R')
+```
+
+## Configuration
+
+Set paths and parameters for the analysis.
+
+```{r config}
+# Model paths
+MODEL_PATH <- "Detectron2_Models/model_final.pth"
+CONFIG_PATH <- "Detectron2_Models/config.yaml"
+
+# Data paths
+SINGLE_IMAGE <- "data/raw/Lyons_data/c/139-45_xp_000019.jpg"
+BATCH_INPUT_DIR <- "data/raw/Lyons_data/c"
+OUTPUT_DIR <- "results"
+
+# Analysis parameters
+CONFIDENCE_THRESHOLD <- 0.5
+USE_SLICING <- TRUE
+SLICE_SIZE <- 512
+OVERLAP_RATIO <- 0.2
+DEVICE <- "cpu"  # Change to 'mps' on Mac or 'cuda' on GPU systems
+
+# Create output directory
+dir.create(OUTPUT_DIR, showWarnings = FALSE, recursive = TRUE)
+```
+
+## Analysis Functions
+
+We now use the optimized functions from `petrography_simple.R` which separate model loading from prediction for maximum efficiency. The model is loaded once and reused across all predictions.
+
+```{r show-functions}
+cat("📋 Available Analysis Functions:\n")
+cat("🤖 load_model() - Load detection model once for reuse\n")
+cat("🔬 predict_image() - Analyze single image with loaded model\n")
+cat("📁 predict_batch() - Process multiple images efficiently\n") 
+cat("📈 evaluate_training() - Assess model performance\n")
+cat("📊 enhance_results() - Add derived metrics\n")
+cat("📋 summarize_by_image() - Per-image statistics\n")
+cat("📈 get_population_stats() - Overall population metrics\n")
+```
+
+## Model Loading
+
+Load the trained detection model once for efficient reuse across all predictions.
+
+```{r load-model}
+# Load the detection model with optimized settings
+model <- load_model(
+  model_path = MODEL_PATH,
+  config_path = CONFIG_PATH, 
+  confidence = CONFIDENCE_THRESHOLD,
+  device = DEVICE
+)
+
+cat("✅ Model loaded successfully\n")
+cat(paste("- Model path:", model$model_path, "\n"))
+cat(paste("- Config path:", model$config_path, "\n"))
+cat(paste("- Confidence threshold:", model$confidence, "\n"))
+cat(paste("- Device:", model$device, "\n"))
+```
+
+## Model Training Evaluation
+
+Evaluate the performance of our trained model by analyzing training logs.
+
+```{r training-evaluation}
+# Run training evaluation
+eval_result <- evaluate_training()
+
+cat("## Training Evaluation Summary\n")
+cat(paste("- Output directory:", eval_result$output_dir, "\n"))
+cat(paste("- Metrics available:", eval_result$summary$metrics_available, "\n"))
+cat(paste("- Training data records:", nrow(eval_result$training_data), "\n"))
+
+# Display summary statistics if available
+if (!is.null(eval_result$summary) && length(eval_result$summary) > 0) {
+  cat("\n### Training Summary\n")
+  if (!is.null(eval_result$summary$total_iterations)) {
+    cat(paste("- Total iterations:", eval_result$summary$total_iterations, "\n"))
+  }
+  
+  # Display basic statistics from training data if available
+  if (nrow(eval_result$training_data) > 0) {
+    training_df <- eval_result$training_data
+    if ("total_loss" %in% names(training_df)) {
+      final_loss <- tail(training_df$total_loss[!is.na(training_df$total_loss)], 1)
+      if (length(final_loss) > 0) {
+        cat(paste("- Final total loss:", round(final_loss, 4), "\n"))
+      }
+    }
+    if ("lr" %in% names(training_df)) {
+      final_lr <- tail(training_df$lr[!is.na(training_df$lr)], 1)
+      if (length(final_lr) > 0) {
+        cat(paste("- Final learning rate:", format(final_lr, scientific = TRUE), "\n"))
+      }
+    }
+  }
+}
+```
+
+Display training curves and evaluation metrics.
+
+```{r training-plots, fig.width=12, fig.height=8}
+# Read and display training metrics if available
+if (nrow(eval_result$training_data) > 0) {
+  training_df <- eval_result$training_data
+  
+  # Plot training losses if loss columns exist
+  loss_cols <- training_df %>% 
+    select(contains("loss")) %>% 
+    names()
+  
+  if (length(loss_cols) > 0) {
+    p_loss <- training_df %>%
+      select(iteration, all_of(loss_cols)) %>%
+      pivot_longer(cols = -iteration, names_to = "loss_type", values_to = "loss_value") %>%
+      filter(!is.na(loss_value)) %>%
+      ggplot(aes(x = iteration, y = loss_value, color = loss_type)) +
+      geom_line() +
+      facet_wrap(~loss_type, scales = "free_y") +
+      labs(title = "Training Loss Curves", x = "Iteration", y = "Loss") +
+      theme_minimal() +
+      theme(legend.position = "none")
+    
+    print(p_loss)
+  }
+  
+  # Display learning rate if available
+  if ("learning_rate" %in% names(training_df)) {
+    p_lr <- training_df %>%
+      filter(!is.na(learning_rate)) %>%
+      ggplot(aes(x = iteration, y = learning_rate)) +
+      geom_line(color = "blue") +
+      scale_y_log10() +
+      labs(title = "Learning Rate Schedule", x = "Iteration", y = "Learning Rate (log)") +
+      theme_minimal()
+    
+    print(p_lr)
+  }
+}
+```
+
+## Single Image Analysis
+
+Demonstrate detailed analysis on a single image.
+
+```{r single-image-analysis}
+# Run prediction on single image using loaded model
+single_result <- predict_image(
+  image_path = SINGLE_IMAGE,
+  model = model,
+  use_slicing = USE_SLICING,
+  slice_size = SLICE_SIZE,
+  output_dir = file.path(OUTPUT_DIR, "single_image")
+)
+  
+cat("## Single Image Analysis Results\n")
+cat(paste("- Objects detected:", nrow(single_result), "\n"))
+```
+
+```{r single-image-display, fig.width=30, fig.height=12}
+# Original image
+original_img <- image_read(SINGLE_IMAGE)
+
+# Prediction image
+pred_files <- list.files(file.path(OUTPUT_DIR, "single_image"), 
+                        pattern = "*_prediction.png", full.names = TRUE)
+
+pred_img <- image_read(pred_files[1])
+
+# Display side by side
+combined <- image_append(c(original_img, pred_img))
+par(mar = c(0, 0, 0, 0))
+plot(combined)
+```
+
+Analyze morphological properties of detected objects.
+
+```{r single-image-morphology}
+# Display summary statistics
+cat("## Morphological Summary\n")
+cat(paste("- Number of objects detected:", nrow(morph_data), "\n"))
+cat(paste("- Total area:", round(sum(morph_data$area, na.rm = TRUE)), "pixels\n"))
+cat(paste("- Mean area:", round(mean(morph_data$area, na.rm = TRUE)), "pixels\n"))
+cat(paste("- Mean circularity:", round(mean(morph_data$circularity, na.rm = TRUE), 3), "\n"))
+cat(paste("- Mean eccentricity:", round(mean(morph_data$eccentricity, na.rm = TRUE), 3), "\n"))
+  
+# Interactive data table
+single_result %>%
+  mutate(across(where(is.numeric), ~round(.x, 1)))
+```
+
+Create morphological analysis plots.
+
+```{r single-morphology-plots, fig.width=12, fig.height=10}
+# Size distribution
+p1 <- single_result %>%
+  ggplot(aes(x = area)) +
+  geom_histogram(bins = 20, fill = "steelblue", alpha = 0.7) +
+  scale_x_log10() +
+  labs(title = "Particle Size Distribution", x = "Area (log scale)", y = "Count") +
+  theme_minimal()
+
+# Eccentricity distribution
+p2 <- single_result %>%
+  ggplot(aes(x = eccentricity)) +
+  geom_histogram(bins = 20, fill = "coral", alpha = 0.7) +
+  labs(title = "Eccentricity Distribution", x = "Eccentricity", y = "Count") +
+  theme_minimal()
+
+# Orientation distribution
+p3 <- single_result %>%
+  ggplot(aes(x = orientation)) +
+  geom_histogram(bins = 20, fill = "forestgreen", alpha = 0.7) +
+  labs(title = "Orientation Distribution", x = "Orientation (radians)", y = "Count") +
+  theme_minimal()
+
+# Circularity vs Area
+p4 <- single_result %>%
+  ggplot(aes(x = area, y = circularity)) +
+  geom_point(alpha = 0.6) +
+  scale_x_log10() +
+  labs(title = "Circularity vs Size", x = "Area (log scale)", y = "Circularity") +
+  theme_minimal()
+
+# Combine plots
+(p1 + p2) / (p3 + p4)
+```
+
+```{r}
+knitr::knit_exit()
+```
+
+## Batch Processing
+
+Process multiple images and analyze population statistics.
+
+```{r batch-processing}
+# Create a temp directory with a few images for demo
+temp_batch_dir <- file.path(OUTPUT_DIR, "temp_batch_input")
+dir.create(temp_batch_dir, showWarnings = FALSE, recursive = TRUE)
+
+# Find and copy first few images for demo
+if (dir.exists(BATCH_INPUT_DIR)) {
+  all_images <- list.files(BATCH_INPUT_DIR, pattern = "\\.(jpg|jpeg|png|tiff|tif)$", 
+                          full.names = TRUE, ignore.case = TRUE)
+  
+  # Copy first 5 images to temp directory
+  demo_images <- head(all_images, 5)
+  for (img in demo_images) {
+    file.copy(img, temp_batch_dir)
+  }
+  
+  cat(paste("Copied", length(demo_images), "images for batch demo\n"))
+  
+  # Run batch prediction using loaded model
+  if (length(demo_images) > 0) {
+    batch_result <- predict_batch(
+      input_dir = temp_batch_dir,
+      model = model,
+      use_slicing = USE_SLICING,
+      slice_size = SLICE_SIZE,
+      overlap = OVERLAP_RATIO,
+      output_dir = file.path(OUTPUT_DIR, "batch_results")
+    )
+    
+    cat("## Batch Processing Results\n")
+    if (nrow(batch_result) > 0) {
+      cat(paste("- Images processed:", length(unique(batch_result$image_name)), "\n"))
+      cat(paste("- Total objects detected:", nrow(batch_result), "\n"))
+    } else {
+      cat("- No objects detected\n")
+    }
+    cat(paste("- Output directory:", file.path(OUTPUT_DIR, "batch_results"), "\n"))
+  }
+} else {
+  cat("⚠️ Batch input directory not found:", BATCH_INPUT_DIR, "\n")
+}
+```
+
+Analyze batch results and population statistics.
+
+```{r batch-analysis}
+if (exists("batch_result") && nrow(batch_result) > 0) {
+  
+  # Use batch_result directly as it's already a tibble
+  batch_detailed <- batch_result
+  
+  cat("## Batch Processing Summary\n")
+  cat(paste("- Total images processed:", length(unique(batch_detailed$image_name)), "\n"))
+  cat(paste("- Total objects detected:", nrow(batch_detailed), "\n"))
+  cat(paste("- Average objects per image:", 
+            round(nrow(batch_detailed) / length(unique(batch_detailed$image_name)), 1), "\n"))
+  
+  # Summary statistics by image
+  batch_summary <- batch_detailed %>%
+    group_by(image_name) %>%
+    summarise(
+      n_objects = n(),
+      total_area = sum(area, na.rm = TRUE),
+      avg_area = mean(area, na.rm = TRUE),
+      avg_eccentricity = mean(eccentricity, na.rm = TRUE),
+      avg_circularity = mean(circularity, na.rm = TRUE),
+      .groups = "drop"
+    )
+  
+  batch_summary %>%
+    mutate(across(where(is.numeric), ~round(.x, 3))) %>%
+    datatable(options = list(pageLength = 10, scrollX = TRUE),
+              caption = "Summary Statistics by Image")
+}
+```
+
+Create population-level visualizations.
+
+```{r batch-visualizations, fig.width=14, fig.height=12}
+if (exists("batch_detailed") && nrow(batch_detailed) > 0) {
+  
+  # Population size distribution
+  p1 <- batch_detailed %>%
+    ggplot(aes(x = area)) +
+    geom_histogram(bins = 30, fill = "steelblue", alpha = 0.7) +
+    scale_x_log10() +
+    labs(title = "Population Size Distribution", 
+         x = "Area (log scale)", y = "Count") +
+    theme_minimal()
+  
+  # Size distribution by image
+  p2 <- batch_detailed %>%
+    ggplot(aes(x = area, fill = image_name)) +
+    geom_density(alpha = 0.5) +
+    scale_x_log10() +
+    labs(title = "Size Distribution by Image", 
+         x = "Area (log scale)", y = "Density") +
+    theme_minimal() +
+    theme(legend.position = "none")
+  
+  # Morphological properties correlation
+  p3 <- batch_detailed %>%
+    sample_n(min(500, nrow(batch_detailed))) %>%  # Sample for performance
+    ggplot(aes(x = eccentricity, y = circularity, color = log10(area))) +
+    geom_point(alpha = 0.6) +
+    scale_color_viridis_c() +
+    labs(title = "Morphological Properties", 
+         x = "Eccentricity", y = "Circularity", 
+         color = "Log Area") +
+    theme_minimal()
+  
+  # Box plots by image
+  p4 <- batch_detailed %>%
+    ggplot(aes(x = image_name, y = area)) +
+    geom_boxplot(alpha = 0.7) +
+    scale_y_log10() +
+    labs(title = "Size Distribution by Image", 
+         x = "Image", y = "Area (log scale)") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  # Combine plots
+  (p1 + p2) / (p3 + p4)
+}
+```
+
+## 
