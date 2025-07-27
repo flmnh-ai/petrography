@@ -50,6 +50,11 @@ SINGLE_IMAGE <- "data/raw/Lyons_data/c/139-45_xp_000019.jpg"
 BATCH_INPUT_DIR <- "data/raw/Lyons_data/c"
 OUTPUT_DIR <- "results"
 
+# Analysis parameters
+USE_SLICING <- TRUE
+SLICE_SIZE <- 512
+OVERLAP_RATIO <- 0.2
+
 # Create output directory
 dir.create(OUTPUT_DIR, showWarnings = FALSE, recursive = TRUE)
 ```
@@ -268,7 +273,8 @@ batch_result <- predict_batch(
   use_slicing = USE_SLICING,
   slice_size = SLICE_SIZE,
   overlap = OVERLAP_RATIO,
-  output_dir = file.path(OUTPUT_DIR, "batch_results")
+  output_dir = file.path(OUTPUT_DIR, "batch_results"),
+  save_visualizations = TRUE
 )
 
 cat("## Batch Processing Results\n")
