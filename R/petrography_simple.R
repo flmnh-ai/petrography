@@ -302,26 +302,50 @@ evaluate_training <- function(model_dir = "Detectron2_Models", device = "cpu",
     training_data <- py_to_r(df) %>%
       as_tibble() %>%
       clean_names()
-
-    # Save to CSV
-    write_csv(training_data, file.path(output_dir, "training_metrics.csv"))
+    
+    # Separate training and validation metrics
+    training_metrics <- training_data %>%
+      select(-contains("bbox")) %>%  # Remove bbox validation metrics for cleaner view
+      filter(!is.na(iteration))
+    
+    validation_metrics <- training_data %>%
+      select(iteration, contains("bbox")) %>%
+      filter(!is.na(iteration), if_any(contains("bbox"), ~ !is.na(.)))
+    
+    # Save to CSV files
+    write_csv(training_metrics, file.path(output_dir, "training_metrics.csv"))
+    if (nrow(validation_metrics) > 0) {
+      write_csv(validation_metrics, file.path(output_dir, "validation_metrics.csv"))
+    }
+    
+    # Update training_data to include both
+    training_data <- training_metrics
 
   } else if (file.exists(log_file)) {
     # Could add log parsing here if needed
     warning("Only log.txt found - metrics.json preferred for analysis")
   }
 
-  # Generate simple summary
+  # Generate enhanced summary
   summary <- list(
     total_iterations = if (nrow(training_data) > 0) max(training_data$iteration, na.rm = TRUE) else 0,
-    metrics_available = nrow(training_data) > 0
+    metrics_available = nrow(training_data) > 0,
+    validation_metrics_available = exists("validation_metrics") && nrow(validation_metrics) > 0,
+    validation_evaluations = if (exists("validation_metrics")) nrow(validation_metrics) else 0
   )
 
-  list(
+  result <- list(
     training_data = training_data,
     summary = summary,
     output_dir = output_dir
   )
+  
+  # Add validation data if available
+  if (exists("validation_metrics") && nrow(validation_metrics) > 0) {
+    result$validation_data <- validation_metrics
+  }
+  
+  return(result)
 }
 
 # ============================================================================
@@ -377,6 +401,8 @@ enhance_results <- function(.data) {
 #' @param max_iter Maximum training iterations (default: 5000)
 #' @param num_classes Number of object classes (default: 5)
 #' @param device Device for local training: 'cpu', 'cuda', 'mps' (default: 'cpu')
+#' @param eval_period Validation evaluation frequency in iterations (default: 500)
+#' @param checkpoint_period Checkpoint saving frequency (0=final only, >0=every N iterations, default: 0)
 #' @param hpc_host SSH hostname for HPC training (NULL for local training)
 #' @param hpc_user Username for HPC (default: current user)
 #' @param hpc_base_dir Remote base directory on HPC (default: "~/petrography_training")
@@ -390,6 +416,8 @@ train_model <- function(data_dir,
                        max_iter = 5000,
                        num_classes = 5,
                        device = "cpu",
+                       eval_period = 500,
+                       checkpoint_period = 0,
                        hpc_host = NULL,
                        hpc_user = Sys.getenv("USER"),
                        hpc_base_dir = "~/petrography_training",
@@ -422,9 +450,9 @@ train_model <- function(data_dir,
 
   # Determine training mode
   if (is.null(hpc_host)) {
-    return(train_model_local(data_dir, output_name, max_iter, num_classes, device, local_output_dir))
+    return(train_model_local(data_dir, output_name, max_iter, num_classes, device, eval_period, checkpoint_period, local_output_dir))
   } else {
-    return(train_model_hpc(data_dir, output_name, max_iter, num_classes,
+    return(train_model_hpc(data_dir, output_name, max_iter, num_classes, eval_period, checkpoint_period,
                           hpc_host, hpc_user, hpc_base_dir, local_output_dir,
                           cleanup_remote, monitor_interval))
   }
@@ -432,7 +460,7 @@ train_model <- function(data_dir,
 
 #' Train model locally using available hardware
 #' @keywords internal
-train_model_local <- function(data_dir, output_name, max_iter, num_classes, device, local_output_dir) {
+train_model_local <- function(data_dir, output_name, max_iter, num_classes, device, eval_period, checkpoint_period, local_output_dir) {
 
   output_dir <- file.path(local_output_dir, output_name)
   dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
@@ -456,7 +484,9 @@ train_model_local <- function(data_dir, output_name, max_iter, num_classes, devi
     "--output-dir", output_dir,
     "--num-classes", num_classes,
     "--device", device,
-    "--max-iter", max_iter
+    "--max-iter", max_iter,
+    "--eval-period", eval_period,
+    "--checkpoint-period", checkpoint_period  # 0 gets converted to 999999 in train.py
   )
 
   # Execute training using reticulate's Python environment
@@ -476,7 +506,7 @@ train_model_local <- function(data_dir, output_name, max_iter, num_classes, devi
 
 #' Train model on HPC using SLURM
 #' @keywords internal
-train_model_hpc <- function(data_dir, output_name, max_iter, num_classes,
+train_model_hpc <- function(data_dir, output_name, max_iter, num_classes, eval_period, checkpoint_period,
                            hpc_host, hpc_user, hpc_base_dir, local_output_dir,
                            cleanup_remote, monitor_interval) {
 
@@ -501,7 +531,7 @@ train_model_hpc <- function(data_dir, output_name, max_iter, num_classes,
   # Generate and submit SLURM job
   cat("🎯 Generating and submitting SLURM job...\n")
   job_id <- submit_slurm_job(hpc_host, hpc_user, remote_session_dir, output_name,
-                            max_iter, num_classes)
+                            max_iter, num_classes, eval_period, checkpoint_period)
 
   cat("🔄 Job submitted with ID:", job_id, "\n")
   cat("⏱️  Monitoring job progress...\n")
@@ -606,10 +636,10 @@ sync_code_to_hpc <- function(hpc_host, hpc_user, remote_session_dir) {
 #' Generate and submit SLURM job for training
 #' @keywords internal
 submit_slurm_job <- function(hpc_host, hpc_user, remote_session_dir, output_name,
-                            max_iter, num_classes) {
+                            max_iter, num_classes, eval_period, checkpoint_period) {
 
   # Generate SLURM script based on template
-  slurm_script <- generate_slurm_script(remote_session_dir, output_name, max_iter, num_classes)
+  slurm_script <- generate_slurm_script(remote_session_dir, output_name, max_iter, num_classes, eval_period, checkpoint_period)
 
   # Write script to remote location
   script_path <- file.path(remote_session_dir, "train_job.sh")
@@ -645,7 +675,7 @@ submit_slurm_job <- function(hpc_host, hpc_user, remote_session_dir, output_name
 
 #' Generate SLURM script content
 #' @keywords internal
-generate_slurm_script <- function(remote_session_dir, output_name, max_iter, num_classes) {
+generate_slurm_script <- function(remote_session_dir, output_name, max_iter, num_classes, eval_period, checkpoint_period) {
 
   data_dir <- file.path(remote_session_dir, "data")
   output_dir <- file.path(remote_session_dir, "output")
@@ -686,7 +716,9 @@ generate_slurm_script <- function(remote_session_dir, output_name, max_iter, num
     paste("  --output-dir", output_dir, "\\"),
     paste("  --num-classes", num_classes, "\\"),
     paste("  --device", "cuda", "\\"),
-    paste("  --max-iter", max_iter),
+    paste("  --max-iter", max_iter, "\\"),
+    paste("  --eval-period", eval_period, "\\"),
+    paste("  --checkpoint-period", checkpoint_period),
     "",
     "echo \"Training completed with exit code: $?\""
   )

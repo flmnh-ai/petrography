@@ -6,6 +6,7 @@ from detectron2.config import get_cfg
 from detectron2 import model_zoo
 from detectron2.data.datasets import register_coco_instances, load_coco_json
 from detectron2.data import MetadataCatalog, DatasetCatalog
+from detectron2.evaluation import COCOEvaluator
 
 import warnings
 import logging
@@ -33,7 +34,7 @@ def setup_cfg(args):
 
     cfg.DATASETS.TRAIN = (args.dataset_name,)
     cfg.DATASETS.TEST  = ("shell_val",)        # <-- change
-    cfg.TEST.EVAL_PERIOD = 1000                # <-- change
+    cfg.TEST.EVAL_PERIOD = args.eval_period or 1000
 
     cfg.DATALOADER.NUM_WORKERS = args.num_workers
     cfg.DATALOADER.PIN_MEMORY  = True
@@ -47,7 +48,9 @@ def setup_cfg(args):
     cfg.SOLVER.GAMMA              = 0.1
     cfg.SOLVER.WARMUP_ITERS       = 500
     cfg.SOLVER.WARMUP_FACTOR      = 1.0/1000
-    cfg.SOLVER.CHECKPOINT_PERIOD  = 1000
+    # Set checkpoint period (use large number to effectively disable intermediate checkpoints)
+    checkpoint_period = args.checkpoint_period if args.checkpoint_period > 0 else 999999
+    cfg.SOLVER.CHECKPOINT_PERIOD  = checkpoint_period
     cfg.SOLVER.AMP.ENABLED        = False # should only turn on with gpu
 
     cfg.INPUT.MIN_SIZE_TRAIN = (640,)
@@ -124,8 +127,15 @@ def main(args):
     with open(os.path.join(cfg.OUTPUT_DIR, "config.yaml"), "w") as f:
         yaml.dump(cfg, f)
 
-    # 3. Train
-    trainer = DefaultTrainer(cfg)
+    # 3. Create trainer with COCO evaluator for validation
+    class CocoTrainer(DefaultTrainer):
+        @classmethod
+        def build_evaluator(cls, cfg, dataset_name, output_folder=None):
+            if output_folder is None:
+                output_folder = os.path.join(cfg.OUTPUT_DIR, "inference")
+            return COCOEvaluator(dataset_name, output_dir=output_folder)
+    
+    trainer = CocoTrainer(cfg)
     trainer.resume_or_load(resume=False)
     trainer.train()
 
@@ -148,6 +158,8 @@ if __name__ == "__main__":
     parser.add_argument("--num-classes",     type=int, default=5)
     parser.add_argument("--device",          default="cpu", choices=["cpu", "cuda", "mps"], help="Device to use for training")
     parser.add_argument("--max-iter",        type=int, default=5000, help="Maximum training iterations")
+    parser.add_argument("--eval-period",     type=int, default=500, help="Validation evaluation frequency (iterations)")
+    parser.add_argument("--checkpoint-period", type=int, default=0, help="Checkpoint saving frequency (0=final only, >0=every N iterations)")
     parser.add_argument("--opts",            nargs=argparse.REMAINDER)
     args = parser.parse_args()
     

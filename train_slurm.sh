@@ -21,4 +21,6 @@ srun python src/train.py \
   --num-workers     $SLURM_CPUS_PER_TASK \
   --num-gpus        1 \
   --device          cuda \
-  --max-iter        5000
+  --max-iter        5000 \
+  --eval-period     500 \
+  --checkpoint-period 0

@@ -35,14 +35,16 @@ Set up paths and training parameters.
 
 ```{r config}
 # Data configuration
-DATA_DIR <- "data/shell_mixed"  # Directory with train/ and val/ subdirectories
+DATA_DIR <- "data/processed/shell_mixed"  # Directory with train/ and val/ subdirectories
 OUTPUT_NAME <- "shell_detector_v3"
 NUM_CLASSES <- 5
 
 # Training parameters
-MAX_ITER <- 5000
+MAX_ITER <- 200
 LEARNING_RATE <- 0.00025
 DEVICE <- "cpu"  # Options: "cpu", "cuda", "mps"
+EVAL_PERIOD <- 20  # Validation evaluation frequency
+CHECKPOINT_PERIOD <- 0  # 0 = only save final model (gets converted to 999999 internally)
 
 # HPC configuration (set to NULL for local training)
 HPC_HOST <- NULL  # Change to "hpg" for HPC training
@@ -53,6 +55,8 @@ cat("- Data directory:", DATA_DIR, "\n")
 cat("- Model name:", OUTPUT_NAME, "\n") 
 cat("- Max iterations:", MAX_ITER, "\n")
 cat("- Device:", DEVICE, "\n")
+cat("- Eval period:", EVAL_PERIOD, "iterations\n")
+cat("- Checkpoint period:", if(CHECKPOINT_PERIOD == 0) "final only" else paste(CHECKPOINT_PERIOD, "iterations"), "\n")
 cat("- Training mode:", if(is.null(HPC_HOST)) "Local" else paste("HPC (", HPC_HOST, ")", sep=""), "\n")
 ```
 
@@ -101,7 +105,7 @@ py_config <- py_config()
 
 cat("🐍 Python Environment:\n")
 cat("- Python executable:", py_config$python, "\n")
-cat("- Python version:", py_config$version, "\n")
+cat("- Python version:", as.character(py_config$version), "\n")
 cat("- Virtual environment:", py_config$virtualenv, "\n")
 
 # Check key dependencies
@@ -140,6 +144,8 @@ model_path <- train_model(
   max_iter = MAX_ITER,
   num_classes = NUM_CLASSES,
   device = DEVICE,
+  eval_period = EVAL_PERIOD,
+  checkpoint_period = CHECKPOINT_PERIOD,
   hpc_host = HPC_HOST,
   hpc_user = HPC_USER
 )
@@ -163,8 +169,10 @@ eval_result <- evaluate_training(model_dir = model_path)
 
 cat("📊 Training Evaluation:\n")
 cat("- Output directory:", eval_result$output_dir, "\n")
-cat("- Metrics available:", eval_result$summary$metrics_available, "\n")
+cat("- Training metrics available:", eval_result$summary$metrics_available, "\n")
+cat("- Validation metrics available:", eval_result$summary$validation_metrics_available, "\n")
 cat("- Total iterations:", eval_result$summary$total_iterations, "\n")
+cat("- Validation evaluations:", eval_result$summary$validation_evaluations, "\n")
 
 if (nrow(eval_result$training_data) > 0) {
   final_metrics <- tail(eval_result$training_data, 1)
@@ -177,11 +185,11 @@ if (nrow(eval_result$training_data) > 0) {
 
 Plot training curves to assess model convergence.
 
-```{r training-plots, fig.width=12, fig.height=8}
+```{r training-plots, fig.width=12, fig.height=10}
 if (nrow(eval_result$training_data) > 0) {
   training_df <- eval_result$training_data
   
-  # Loss curves
+  # Training Loss curves
   loss_cols <- training_df %>% 
     select(contains("loss")) %>% 
     names()
@@ -200,6 +208,34 @@ if (nrow(eval_result$training_data) > 0) {
       theme(legend.position = "none")
     
     print(p_loss)
+  }
+  
+  # Validation metrics plots
+  if (nrow(eval_result$validation_data) > 0) {
+    validation_df <- eval_result$validation_data
+    
+    # Get validation metric columns (typically bbox/AP metrics)
+    val_cols <- validation_df %>% 
+      select(-iteration) %>% 
+      select_if(~ !all(is.na(.))) %>%
+      names()
+    
+    if (length(val_cols) > 0) {
+      p_validation <- validation_df %>%
+        select(iteration, all_of(val_cols)) %>%
+        pivot_longer(cols = -iteration, names_to = "metric_type", values_to = "metric_value") %>%
+        filter(!is.na(metric_value)) %>%
+        ggplot(aes(x = iteration, y = metric_value, color = metric_type)) +
+        geom_line(alpha = 0.8) + 
+        geom_point(alpha = 0.6, size = 1) +
+        facet_wrap(~metric_type, scales = "free_y") +
+        labs(title = paste("Validation Metrics -", OUTPUT_NAME),
+             x = "Iteration", y = "Metric Value") +
+        theme_minimal() +
+        theme(legend.position = "none")
+      
+      print(p_validation)
+    }
   }
   
   # Learning rate schedule
