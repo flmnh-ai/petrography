@@ -33,12 +33,23 @@ check_training_dependencies <- function() {
 #' @param device Device to use: 'cpu', 'cuda', 'mps' (default: 'mps')
 #' @return PetrographyModel object
 #' @export
-load_model <- function(model_path = "Detectron2_Models/model_final.pth",
-                       config_path = "Detectron2_Models/config.yaml",
+load_model <- function(model_path = NULL,
+                       config_path = NULL,
                        confidence = 0.5,
                        device = "cpu") {
 
-  # Load SAHI model
+  cache <- get_model_cache_dir()
+  default_model <- file.path(cache, "model_final.pth")
+  default_config <- file.path(cache, "config.yaml")
+
+  if (is.null(model_path)) model_path <- default_model
+  if (is.null(config_path)) config_path <- default_config
+
+  if (!file.exists(model_path) || !file.exists(config_path)) {
+    message("Model files not found. Downloading...")
+    download_model()
+  }
+
   sahi_model <- sahi$AutoDetectionModel$from_pretrained(
     model_type = 'detectron2',
     model_path = model_path,
@@ -47,7 +58,6 @@ load_model <- function(model_path = "Detectron2_Models/model_final.pth",
     device = device
   )
 
-  # Create custom wrapper object
   model <- list(
     sahi_model = sahi_model,
     model_path = model_path,
@@ -55,10 +65,56 @@ load_model <- function(model_path = "Detectron2_Models/model_final.pth",
     confidence = confidence,
     device = device
   )
-
   class(model) <- "PetrographyModel"
   return(model)
 }
+
+
+get_model_cache_dir <- function() {
+  tools::R_user_dir("petrography", which = "cache")
+}
+
+
+download_model <- function(force = FALSE) {
+  cache_dir <- get_model_cache_dir()
+  dir.create(cache_dir, showWarnings = FALSE, recursive = TRUE)
+
+  model_url <- "https://www.dropbox.com/scl/fi/3ilo6msi7r1d9fmfn1zq2/model_final.pth?rlkey=6x2ielfy0fr7kijkysa0i3b3l&st=wbfz9k50&dl=1"
+  config_url <- "https://www.dropbox.com/scl/fi/kjlggms8k1x4ghhjiph39/config.yaml?rlkey=8lqiu9eeh6xtjcoj2v7ksyb3k&st=haqn63up&dl=1"
+
+  model_path <- file.path(cache_dir, "model_final.pth")
+  config_path <- file.path(cache_dir, "config.yaml")
+
+  if (!file.exists(model_path) || force) {
+    message("Downloading model weights...")
+    download.file(model_url, model_path, mode = "wb")
+    message("Model weights saved to: ", model_path)
+  } else {
+    message("Model weights already present at: ", model_path)
+  }
+
+  if (!file.exists(config_path) || force) {
+    message("Downloading model config...")
+    download.file(config_url, config_path, mode = "wb")
+    message("Model config saved to: ", config_path)
+  } else {
+    message("Model config already present at: ", config_path)
+  }
+
+  return(list(model_path = model_path, config_path = config_path))
+}
+
+clear_model_cache <- function() {
+  cache_dir <- get_model_cache_dir()
+  if (dir.exists(cache_dir)) {
+    unlink(cache_dir, recursive = TRUE)
+    message("Cleared model cache at: ", cache_dir)
+  } else {
+    message("No model cache found at: ", cache_dir)
+  }
+}
+
+
 
 # ============================================================================
 # Helper Functions for Direct Reticulate Calls
@@ -302,22 +358,22 @@ evaluate_training <- function(model_dir = "Detectron2_Models", device = "cpu",
     training_data <- py_to_r(df) %>%
       as_tibble() %>%
       clean_names()
-    
+
     # Separate training and validation metrics
     training_metrics <- training_data %>%
       select(-contains("bbox")) %>%  # Remove bbox validation metrics for cleaner view
       filter(!is.na(iteration))
-    
+
     validation_metrics <- training_data %>%
       select(iteration, contains("bbox")) %>%
       filter(!is.na(iteration), if_any(contains("bbox"), ~ !is.na(.)))
-    
+
     # Save to CSV files
     write_csv(training_metrics, file.path(output_dir, "training_metrics.csv"))
     if (nrow(validation_metrics) > 0) {
       write_csv(validation_metrics, file.path(output_dir, "validation_metrics.csv"))
     }
-    
+
     # Update training_data to include both
     training_data <- training_metrics
 
@@ -339,12 +395,12 @@ evaluate_training <- function(model_dir = "Detectron2_Models", device = "cpu",
     summary = summary,
     output_dir = output_dir
   )
-  
+
   # Add validation data if available
   if (exists("validation_metrics") && nrow(validation_metrics) > 0) {
     result$validation_data <- validation_metrics
   }
-  
+
   return(result)
 }
 
