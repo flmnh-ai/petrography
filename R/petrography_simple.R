@@ -455,7 +455,8 @@ train_model_local <- function(data_dir, output_name, max_iter, num_classes, devi
     "--val-image-root", file.path(data_dir, "val"),
     "--output-dir", output_dir,
     "--num-classes", num_classes,
-    "--opts SOLVER.MAX_ITER", max_iter
+    "--device", device,
+    "--max-iter", max_iter
   )
 
   # Execute training using reticulate's Python environment
@@ -684,7 +685,8 @@ generate_slurm_script <- function(remote_session_dir, output_name, max_iter, num
     paste("  --val-image-root", file.path(data_dir, "val"), "\\"),
     paste("  --output-dir", output_dir, "\\"),
     paste("  --num-classes", num_classes, "\\"),
-    paste("  --opts SOLVER.MAX_ITER", max_iter),
+    paste("  --device", "cuda", "\\"),
+    paste("  --max-iter", max_iter),
     "",
     "echo \"Training completed with exit code: $?\""
   )

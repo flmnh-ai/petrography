@@ -29,7 +29,7 @@ def setup_cfg(args):
     args.config_file = base_cfg
 
     cfg.OUTPUT_DIR = args.output_dir
-    cfg.MODEL.DEVICE = "cpu"#"cuda" if args.num_gpus > 0 else "cpu"
+    cfg.MODEL.DEVICE = args.device
 
     cfg.DATASETS.TRAIN = (args.dataset_name,)
     cfg.DATASETS.TEST  = ("shell_val",)        # <-- change
@@ -42,7 +42,7 @@ def setup_cfg(args):
 
     cfg.SOLVER.IMS_PER_BATCH      = 4
     cfg.SOLVER.BASE_LR            = 0.00025
-    cfg.SOLVER.MAX_ITER           = 10
+    cfg.SOLVER.MAX_ITER           = args.max_iter
     cfg.SOLVER.STEPS              = [3000, 4500]
     cfg.SOLVER.GAMMA              = 0.1
     cfg.SOLVER.WARMUP_ITERS       = 500
@@ -145,7 +145,9 @@ if __name__ == "__main__":
     parser.add_argument("--output-dir",
         default="Detectron2_Models")
     parser.add_argument("--num-workers",     type=int, default=4)
-    parser.add_argument("--num-classes",     type=int, default=5),
+    parser.add_argument("--num-classes",     type=int, default=5)
+    parser.add_argument("--device",          default="cpu", choices=["cpu", "cuda", "mps"], help="Device to use for training")
+    parser.add_argument("--max-iter",        type=int, default=5000, help="Maximum training iterations")
     parser.add_argument("--opts",            nargs=argparse.REMAINDER)
     args = parser.parse_args()
     

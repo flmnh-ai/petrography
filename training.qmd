@@ -42,6 +42,7 @@ NUM_CLASSES <- 5
 # Training parameters
 MAX_ITER <- 5000
 LEARNING_RATE <- 0.00025
+DEVICE <- "cpu"  # Options: "cpu", "cuda", "mps"
 
 # HPC configuration (set to NULL for local training)
 HPC_HOST <- NULL  # Change to "hpg" for HPC training
@@ -51,6 +52,7 @@ cat("📋 Training Configuration:\n")
 cat("- Data directory:", DATA_DIR, "\n")
 cat("- Model name:", OUTPUT_NAME, "\n") 
 cat("- Max iterations:", MAX_ITER, "\n")
+cat("- Device:", DEVICE, "\n")
 cat("- Training mode:", if(is.null(HPC_HOST)) "Local" else paste("HPC (", HPC_HOST, ")", sep=""), "\n")
 ```
 
@@ -137,6 +139,7 @@ model_path <- train_model(
   output_name = OUTPUT_NAME,
   max_iter = MAX_ITER,
   num_classes = NUM_CLASSES,
+  device = DEVICE,
   hpc_host = HPC_HOST,
   hpc_user = HPC_USER
 )
@@ -227,7 +230,7 @@ new_model <- load_model(
   model_path = file.path(model_path, "model_final.pth"),
   config_path = file.path(model_path, "config.yaml"),
   confidence = 0.5,
-  device = "cpu"
+  device = DEVICE
 )
 
 cat("✅ Successfully loaded new model\n")

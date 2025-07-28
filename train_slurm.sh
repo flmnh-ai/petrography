@@ -19,4 +19,6 @@ srun python src/train.py \
   --val-image-root      ../data/shell_mixed/val \
   --output-dir      ../Detectron2_Models \
   --num-workers     $SLURM_CPUS_PER_TASK \
-  --num-gpus        1
+  --num-gpus        1 \
+  --device          cuda \
+  --max-iter        5000
