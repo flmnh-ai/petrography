@@ -7,6 +7,19 @@ from detectron2 import model_zoo
 from detectron2.data.datasets import register_coco_instances, load_coco_json
 from detectron2.data import MetadataCatalog, DatasetCatalog
 
+import warnings
+import logging
+
+# Suppress pkg_resources deprecation warning
+warnings.filterwarnings("ignore", category=UserWarning, module=".*pkg_resources.*")
+
+# Suppress torch.meshgrid indexing warning
+warnings.filterwarnings("ignore", message=".*torch.meshgrid.*indexing argument.*")
+
+# Suppress fvcore and detectron2 log spam
+logging.getLogger("fvcore.common.checkpoint").setLevel(logging.ERROR)
+logging.getLogger("detectron2").setLevel(logging.ERROR)
+
 def setup_cfg(args):
     cfg = get_cfg()
     base_cfg = args.config_file or "COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"
@@ -16,7 +29,7 @@ def setup_cfg(args):
     args.config_file = base_cfg
 
     cfg.OUTPUT_DIR = args.output_dir
-    cfg.MODEL.DEVICE = "cuda" if args.num_gpus > 0 else "cpu"
+    cfg.MODEL.DEVICE = "cpu"#"cuda" if args.num_gpus > 0 else "cpu"
 
     cfg.DATASETS.TRAIN = (args.dataset_name,)
     cfg.DATASETS.TEST  = ("shell_val",)        # <-- change
@@ -29,13 +42,13 @@ def setup_cfg(args):
 
     cfg.SOLVER.IMS_PER_BATCH      = 4
     cfg.SOLVER.BASE_LR            = 0.00025
-    cfg.SOLVER.MAX_ITER           = 5000
+    cfg.SOLVER.MAX_ITER           = 10
     cfg.SOLVER.STEPS              = [3000, 4500]
     cfg.SOLVER.GAMMA              = 0.1
     cfg.SOLVER.WARMUP_ITERS       = 500
     cfg.SOLVER.WARMUP_FACTOR      = 1.0/1000
     cfg.SOLVER.CHECKPOINT_PERIOD  = 1000
-    cfg.SOLVER.AMP.ENABLED        = True
+    cfg.SOLVER.AMP.ENABLED        = False # should only turn on with gpu
 
     cfg.INPUT.MIN_SIZE_TRAIN = (640,)
     cfg.INPUT.MAX_SIZE_TRAIN = 640
@@ -132,8 +145,8 @@ if __name__ == "__main__":
     parser.add_argument("--output-dir",
         default="Detectron2_Models")
     parser.add_argument("--num-workers",     type=int, default=4)
-    parser.add_argument("--num-classes",     type=int, default=5)
+    parser.add_argument("--num-classes",     type=int, default=5),
     parser.add_argument("--opts",            nargs=argparse.REMAINDER)
     args = parser.parse_args()
     
-    launch(main, args.num_gpus, num_machines=1, machine_rank=0, dist_url="auto", args=(args,))
+    launch(main, 0, num_machines=1, machine_rank=0, dist_url="auto", args=(args,))

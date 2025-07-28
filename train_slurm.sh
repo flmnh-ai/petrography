@@ -12,11 +12,11 @@
 module purge
 module load detectron2
 
-srun python train.py \
-  --annotation-json data/shell_mixed/train/_annotations.coco.json \
-  --image-root      data/shell_mixed/train \
-  --val-annotation-json data/shell_mixed/val/_annotations.coco.json \
-  --val-image-root      data/shell_mixed/val \
-  --output-dir      Detectron2_Models \
+srun python src/train.py \
+  --annotation-json ../data/shell_mixed/train/_annotations.coco.json \
+  --image-root      ../data/shell_mixed/train \
+  --val-annotation-json ../data/shell_mixed/val/_annotations.coco.json \
+  --val-image-root      ../data/shell_mixed/val \
+  --output-dir      ../Detectron2_Models \
   --num-workers     $SLURM_CPUS_PER_TASK \
   --num-gpus        1
