@@ -1,28 +1,4 @@
 # ============================================================================
-# Required Libraries for HPC Training
-# ============================================================================
-
-#' Check and load required libraries for training functionality
-#' @keywords internal
-check_training_dependencies <- function() {
-  required_packages <- c("future", "reticulate", "tidyverse")
-
-  missing_packages <- required_packages[!sapply(required_packages, requireNamespace, quietly = TRUE)]
-
-  if (length(missing_packages) > 0) {
-    stop("Missing required packages for training: ", paste(missing_packages, collapse = ", "),
-         "\nInstall with: install.packages(c('", paste(missing_packages, collapse = "', '"), "'))")
-  }
-
-  # Load future for async operations
-  if (!require(future, quietly = TRUE)) {
-    stop("Failed to load future package")
-  }
-
-  return(invisible(TRUE))
-}
-
-# ============================================================================
 # Model Loading and Management
 # ============================================================================
 
@@ -30,7 +6,7 @@ check_training_dependencies <- function() {
 #' @param model_path Path to trained model weights (default: 'Detectron2_Models/model_final.pth')
 #' @param config_path Path to model config (default: 'Detectron2_Models/config.yaml')
 #' @param confidence Confidence threshold (default: 0.5)
-#' @param device Device to use: 'cpu', 'cuda', 'mps' (default: 'mps')
+#' @param device Device to use: 'cpu', 'cuda', 'mps' (default: 'cpu')
 #' @return PetrographyModel object
 #' @export
 load_model <- function(model_path = NULL,
@@ -475,32 +451,30 @@ train_model <- function(data_dir,
                        eval_period = 500,
                        checkpoint_period = 0,
                        hpc_host = NULL,
-                       hpc_user = Sys.getenv("USER"),
-                       hpc_base_dir = "~/petrography_training",
+                       hpc_user = NULL,
+                       hpc_base_dir = NULL,
                        local_output_dir = "Detectron2_Models",
                        cleanup_remote = TRUE,
                        monitor_interval = 30) {
 
-  # Check dependencies
-  check_training_dependencies()
 
   # Validate inputs
   if (!dir.exists(data_dir)) {
     stop("Data directory not found: ", data_dir)
   }
 
-  train_dir <- file.path(data_dir, "train")
-  val_dir <- file.path(data_dir, "val")
+  train_dir <- file.path(data_dir, "train", fsep = "/")
+  val_dir <- file.path(data_dir, "val", fsep = "/")
 
   if (!dir.exists(train_dir) || !dir.exists(val_dir)) {
     stop("Data directory must contain 'train' and 'val' subdirectories")
   }
 
-  if (!file.exists(file.path(train_dir, "_annotations.coco.json"))) {
+  if (!file.exists(file.path(train_dir, "_annotations.coco.json", fsep = "/"))) {
     stop("Missing COCO annotations in train directory")
   }
 
-  if (!file.exists(file.path(val_dir, "_annotations.coco.json"))) {
+  if (!file.exists(file.path(val_dir, "_annotations.coco.json", fsep = "/"))) {
     stop("Missing COCO annotations in val directory")
   }
 
@@ -518,7 +492,7 @@ train_model <- function(data_dir,
 #' @keywords internal
 train_model_local <- function(data_dir, output_name, max_iter, num_classes, device, eval_period, checkpoint_period, local_output_dir) {
 
-  output_dir <- file.path(local_output_dir, output_name)
+  output_dir <- file.path(local_output_dir, output_name, fsep = "/")
   dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
 
   cat("🔬 Starting local training...\n")
@@ -533,10 +507,10 @@ train_model_local <- function(data_dir, output_name, max_iter, num_classes, devi
   python_cmd <- paste(
     shQuote(python_exe), "src/train.py",
     "--dataset-name", paste0(output_name, "_train"),
-    "--annotation-json", file.path(data_dir, "train", "_annotations.coco.json"),
-    "--image-root", file.path(data_dir, "train"),
-    "--val-annotation-json", file.path(data_dir, "val", "_annotations.coco.json"),
-    "--val-image-root", file.path(data_dir, "val"),
+    "--annotation-json", file.path(data_dir, "train", "_annotations.coco.json", fsep = "/"),
+    "--image-root", file.path(data_dir, "train", fsep = "/"),
+    "--val-annotation-json", file.path(data_dir, "val", "_annotations.coco.json", fsep = "/"),
+    "--val-image-root", file.path(data_dir, "val", fsep = "/"),
     "--output-dir", output_dir,
     "--num-classes", num_classes,
     "--device", device,
@@ -565,6 +539,10 @@ train_model_local <- function(data_dir, output_name, max_iter, num_classes, devi
 train_model_hpc <- function(data_dir, output_name, max_iter, num_classes, eval_period, checkpoint_period,
                            hpc_host, hpc_user, hpc_base_dir, local_output_dir,
                            cleanup_remote, monitor_interval) {
+
+  if (is.null(hpc_base_dir)) {
+    stop("Missing `hpc_base_dir`: please specify the base path for training files on your HPC system.")
+  }
 
   # Check SSH connectivity
   if (!test_ssh_connection(hpc_host, hpc_user)) {
@@ -629,146 +607,152 @@ train_model_hpc <- function(data_dir, output_name, max_iter, num_classes, eval_p
 
 #' Test SSH connection to HPC
 #' @keywords internal
-test_ssh_connection <- function(hpc_host, hpc_user) {
-  tryCatch({
-    result <- system(paste("ssh -o BatchMode=yes -o ConnectTimeout=5",
-                          paste0(hpc_user, "@", hpc_host), "echo 'connection_test'"),
-                    intern = TRUE, ignore.stderr = TRUE)
-    return(length(result) > 0 && result[1] == "connection_test")
-  }, error = function(e) {
-    return(FALSE)
-  })
+test_ssh_connection <- function(hpc_host = "hpg", hpc_user = NULL) {
+  # Check if control master already exists
+  check <- system2("ssh", c("-O", "check", hpc_host),
+                   stdout = FALSE, stderr = FALSE)
+
+  if (check != 0) {
+    cat("🔐 SSH connection required. Please authenticate with Duo MFA...\n")
+
+    # Open interactive SSH connection for Duo MFA
+    # This will show the Duo prompt in the console
+    system2("ssh", c("-tt", hpc_host, "echo 'Connection established'"),
+            wait = TRUE)  # MUST be wait=TRUE for interactive prompt
+
+    # Now start the control master in background
+    status <- system2("ssh", c("-MNf", hpc_host), wait = FALSE)
+    Sys.sleep(1)
+
+    # Verify connection
+    check <- system2("ssh", c("-O", "check", hpc_host),
+                     stdout = FALSE, stderr = FALSE)
+    return(check == 0)
+  }
+
+  return(TRUE)
 }
+
 
 #' Setup remote directory structure on HPC
 #' @keywords internal
-setup_remote_directories <- function(hpc_host, hpc_user, hpc_base_dir, output_name) {
+setup_remote_directories <- function(hpc_host, hpc_user = NULL, hpc_base_dir, output_name) {
   timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
-  remote_session_dir <- file.path(hpc_base_dir, paste0(output_name, "_", timestamp))
+  remote_session_dir <- file.path(hpc_base_dir, paste0(output_name, "_", timestamp), fsep = "/")
+  target <- if (!is.null(hpc_user)) paste0(hpc_user, "@", hpc_host) else hpc_host
 
-  # Create remote directories
-  ssh_cmd <- paste("ssh", paste0(hpc_user, "@", hpc_host),
-                   shQuote(paste("mkdir -p", remote_session_dir,
-                                file.path(remote_session_dir, "data"),
-                                file.path(remote_session_dir, "src"))))
+  remote_dirs <- c(
+    remote_session_dir,
+    file.path(remote_session_dir, "data", fsep = "/"),
+    file.path(remote_session_dir, "src", fsep = "/")
+  )
+
+  mkdir_cmd <- paste("mkdir -p", paste(shQuote(remote_dirs), collapse = " "))
+  ssh_cmd <- paste("ssh", target, shQuote(mkdir_cmd))
 
   result <- system(ssh_cmd, ignore.stderr = TRUE)
-  if (result != 0) {
-    stop("Failed to create remote directories")
-  }
+  if (result != 0) stop("❌ Failed to create remote directories on HPC")
 
   return(remote_session_dir)
 }
 
+
+
 #' Sync local data to HPC using rsync
 #' @keywords internal
-sync_data_to_hpc <- function(local_data_dir, hpc_host, hpc_user, remote_session_dir) {
-  remote_data_dir <- file.path(remote_session_dir, "data", basename(local_data_dir))
+sync_data_to_hpc <- function(local_data_dir, hpc_host, hpc_user = NULL, remote_session_dir) {
+  # Don't override user if using SSH config
+  if (hpc_host == "hpg" && is.null(hpc_user)) {
+    target <- hpc_host  # SSH config handles the user
+  } else {
+    target <- if (!is.null(hpc_user)) paste0(hpc_user, "@", hpc_host) else hpc_host
+  }
 
+  remote_data_dir <- file.path(remote_session_dir, "data", fsep = "/")
+
+  # Sync the contents of local_data_dir to remote data dir
+  # This preserves the train/ and val/ subdirectories
   rsync_cmd <- paste("rsync -avz --progress",
-                     paste0(local_data_dir, "/"),
-                     paste0(hpc_user, "@", hpc_host, ":", remote_data_dir, "/"))
+                     shQuote(paste0(local_data_dir, "/")),
+                     shQuote(paste0(target, ":", remote_data_dir)))
 
   result <- system(rsync_cmd)
-  if (result != 0) {
-    stop("Failed to sync data to HPC")
-  }
+  if (result != 0) stop("❌ Failed to sync data to HPC")
 }
+
+
 
 #' Sync training code to HPC
 #' @keywords internal
-sync_code_to_hpc <- function(hpc_host, hpc_user, remote_session_dir) {
+sync_code_to_hpc <- function(hpc_host, hpc_user = NULL, remote_session_dir) {
+  target <- if (!is.null(hpc_user)) paste0(hpc_user, "@", hpc_host) else hpc_host
 
-  # Copy Python training script
   rsync_cmd <- paste("rsync -avz", "src/train.py",
-                     paste0(hpc_user, "@", hpc_host, ":", file.path(remote_session_dir, "src/")))
+                     shQuote(paste0(target, ":", file.path(remote_session_dir, "src/", fsep = "/"))))
 
   result <- system(rsync_cmd)
-  if (result != 0) {
-    stop("Failed to sync training code to HPC")
-  }
+  if (result != 0) stop("❌ Failed to sync training code to HPC")
 }
+
 
 #' Generate and submit SLURM job for training
 #' @keywords internal
-submit_slurm_job <- function(hpc_host, hpc_user, remote_session_dir, output_name,
-                            max_iter, num_classes, eval_period, checkpoint_period) {
-
-  # Generate SLURM script based on template
+submit_slurm_job <- function(hpc_host, hpc_user = NULL, remote_session_dir, output_name,
+                             max_iter, num_classes, eval_period, checkpoint_period) {
   slurm_script <- generate_slurm_script(remote_session_dir, output_name, max_iter, num_classes, eval_period, checkpoint_period)
-
-  # Write script to remote location
-  script_path <- file.path(remote_session_dir, "train_job.sh")
-
-  # Transfer script to HPC
+  script_path <- file.path(remote_session_dir, "train_job.sh", fsep = "/")
   temp_script <- tempfile(fileext = ".sh")
   writeLines(slurm_script, temp_script)
 
-  rsync_cmd <- paste("rsync -avz", temp_script,
-                     paste0(hpc_user, "@", hpc_host, ":", script_path))
+  target <- if (!is.null(hpc_user)) paste0(hpc_user, "@", hpc_host) else hpc_host
+  rsync_cmd <- paste("rsync -avz", shQuote(temp_script), shQuote(paste0(target, ":", script_path)))
 
   result <- system(rsync_cmd)
-  if (result != 0) {
-    stop("Failed to transfer SLURM script to HPC")
-  }
-
+  if (result != 0) stop("❌ Failed to transfer SLURM script to HPC")
   unlink(temp_script)
 
-  # Submit job and capture job ID
-  ssh_cmd <- paste("ssh", paste0(hpc_user, "@", hpc_host),
-                   shQuote(paste("cd", remote_session_dir, "&& sbatch train_job.sh")))
-
+  ssh_cmd <- paste("ssh", target, shQuote(paste("cd", shQuote(remote_session_dir), "&& sbatch train_job.sh")))
   result <- system(ssh_cmd, intern = TRUE)
 
-  # Extract job ID from sbatch output
   if (length(result) == 0 || !grepl("Submitted batch job", result[1])) {
-    stop("Failed to submit SLURM job: ", paste(result, collapse = "\n"))
+    stop("❌ Failed to submit SLURM job: ", paste(result, collapse = "\n"))
   }
 
   job_id <- gsub("Submitted batch job ([0-9]+)", "\\1", result[1])
   return(job_id)
 }
 
+
 #' Generate SLURM script content
 #' @keywords internal
 generate_slurm_script <- function(remote_session_dir, output_name, max_iter, num_classes, eval_period, checkpoint_period) {
-
-  data_dir <- file.path(remote_session_dir, "data")
-  output_dir <- file.path(remote_session_dir, "output")
+  data_dir <- file.path(remote_session_dir, "data", fsep = "/")
+  output_dir <- file.path(remote_session_dir, "output", fsep = "/")
 
   script_lines <- c(
     "#!/bin/bash",
     "#SBATCH --job-name=petrography_train",
     "#SBATCH --output=%x_%j.out",
     "#SBATCH --error=%x_%j.err",
-    "#SBATCH --mail-type=END,FAIL",
-    "#SBATCH --mail-user=$USER@ufl.edu",
-    "#SBATCH --time=04:00:00",
+    "#SBATCH --time=02:00:00",
     "#SBATCH --nodes=1",
     "#SBATCH --ntasks=1",
     "#SBATCH --cpus-per-task=4",
-    "#SBATCH --mem=32gb",
-    "#SBATCH --partition=gpu",
+    "#SBATCH --mem=24gb",
     "#SBATCH --gpus=1",
     "",
-    "# Load modules",
-    "module load conda",
-    "module load cuda/11.8",
+    "module purge",
+    "module load detectron2",
     "",
-    "# Activate conda environment",
-    "conda activate detectron2",
+    paste("mkdir -p", shQuote(output_dir)),
     "",
-    "# Create output directory",
-    paste("mkdir -p", output_dir),
-    "",
-    "# Run training",
-    paste("cd", remote_session_dir),
+    paste("cd", shQuote(remote_session_dir)),
     paste("python src/train.py \\"),
     paste("  --dataset-name", paste0(output_name, "_train"), "\\"),
-    paste("  --annotation-json", file.path(data_dir, "train", "_annotations.coco.json"), "\\"),
-    paste("  --image-root", file.path(data_dir, "train"), "\\"),
-    paste("  --val-annotation-json", file.path(data_dir, "val", "_annotations.coco.json"), "\\"),
-    paste("  --val-image-root", file.path(data_dir, "val"), "\\"),
+    paste("  --annotation-json", file.path(data_dir, "train", "_annotations.coco.json", fsep = "/"), "\\"),
+    paste("  --image-root", file.path(data_dir, "train", fsep = "/"), "\\"),
+    paste("  --val-annotation-json", file.path(data_dir, "val", "_annotations.coco.json", fsep = "/"), "\\"),
+    paste("  --val-image-root", file.path(data_dir, "val", fsep = "/"), "\\"),
     paste("  --output-dir", output_dir, "\\"),
     paste("  --num-classes", num_classes, "\\"),
     paste("  --device", "cuda", "\\"),
@@ -776,45 +760,39 @@ generate_slurm_script <- function(remote_session_dir, output_name, max_iter, num
     paste("  --eval-period", eval_period, "\\"),
     paste("  --checkpoint-period", checkpoint_period),
     "",
-    "echo \"Training completed with exit code: $?\""
+    'echo "Training completed with exit code: $?"'
   )
 
   return(script_lines)
 }
 
+
 #' Monitor SLURM job status until completion
 #' @keywords internal
-monitor_slurm_job <- function(hpc_host, hpc_user, job_id, monitor_interval) {
+monitor_slurm_job <- function(hpc_host, hpc_user = NULL, job_id, monitor_interval = 30) {
+  target <- if (!is.null(hpc_user)) paste0(hpc_user, "@", hpc_host) else hpc_host
 
   while (TRUE) {
-    # Check job status
-    ssh_cmd <- paste("ssh", paste0(hpc_user, "@", hpc_host),
+    # Check if job is still in queue
+    ssh_cmd <- paste("ssh", target,
                      shQuote(paste("squeue -j", job_id, "-h -o %T")))
 
     status_result <- tryCatch({
       system(ssh_cmd, intern = TRUE, ignore.stderr = TRUE)
-    }, error = function(e) {
-      character(0)
-    })
+    }, error = function(e) character(0))
 
     if (length(status_result) == 0) {
-      # Job not found in queue, check if it completed
-      ssh_cmd <- paste("ssh", paste0(hpc_user, "@", hpc_host),
+      # Not in queue anymore, check final state
+      ssh_cmd <- paste("ssh", target,
                        shQuote(paste("sacct -j", job_id, "-n -o State | tail -n 1")))
 
       final_status <- tryCatch({
         system(ssh_cmd, intern = TRUE, ignore.stderr = TRUE)
-      }, error = function(e) {
-        "UNKNOWN"
-      })
+      }, error = function(e) "UNKNOWN")
 
-      if (length(final_status) > 0) {
-        final_status <- trimws(final_status[1])
-        cat("🏁 Job", job_id, "final status:", final_status, "\n")
-        return(final_status)
-      } else {
-        return("UNKNOWN")
-      }
+      final_status <- if (length(final_status) > 0) trimws(final_status[1]) else "UNKNOWN"
+      cat("🏁 Job", job_id, "final status:", final_status, "\n")
+      return(final_status)
     }
 
     current_status <- trimws(status_result[1])
@@ -828,41 +806,43 @@ monitor_slurm_job <- function(hpc_host, hpc_user, job_id, monitor_interval) {
   }
 }
 
+
 #' Download trained model from HPC to local machine
 #' @keywords internal
-download_trained_model <- function(hpc_host, hpc_user, remote_session_dir,
-                                  output_name, local_output_dir) {
+download_trained_model <- function(hpc_host, hpc_user = NULL, remote_session_dir,
+                                   output_name, local_output_dir) {
+  target <- if (!is.null(hpc_user)) paste0(hpc_user, "@", hpc_host) else hpc_host
 
-  local_model_dir <- file.path(local_output_dir, output_name)
+  local_model_dir <- file.path(local_output_dir, output_name, fsep = "/")
   dir.create(local_model_dir, showWarnings = FALSE, recursive = TRUE)
 
-  remote_output_dir <- file.path(remote_session_dir, "output")
+  remote_output_dir <- file.path(remote_session_dir, "output", fsep = "/")
 
-  # Download all files from remote output directory
   rsync_cmd <- paste("rsync -avz --progress",
-                     paste0(hpc_user, "@", hpc_host, ":", remote_output_dir, "/"),
-                     paste0(local_model_dir, "/"))
+                     shQuote(paste0(target, ":", remote_output_dir, "/")),
+                     shQuote(paste0(local_model_dir, "/")))
 
   result <- system(rsync_cmd)
-  if (result != 0) {
-    stop("Failed to download trained model from HPC")
-  }
+  if (result != 0) stop("❌ Failed to download trained model from HPC")
 
   return(local_model_dir)
 }
 
+
 #' Clean up remote session directory
 #' @keywords internal
-cleanup_remote_session <- function(hpc_host, hpc_user, remote_session_dir) {
+cleanup_remote_session <- function(hpc_host, hpc_user = NULL, remote_session_dir) {
+  target <- if (!is.null(hpc_user)) paste0(hpc_user, "@", hpc_host) else hpc_host
 
-  ssh_cmd <- paste("ssh", paste0(hpc_user, "@", hpc_host),
-                   shQuote(paste("rm -rf", remote_session_dir)))
+  ssh_cmd <- paste("ssh", target,
+                   shQuote(paste("rm -rf", shQuote(remote_session_dir))))
 
   result <- system(ssh_cmd, ignore.stderr = TRUE)
   if (result != 0) {
-    warning("Failed to cleanup remote session directory: ", remote_session_dir)
+    warning("⚠️ Failed to clean up remote session directory:", remote_session_dir)
   }
 }
+
 
 # ============================================================================
 # Summary Functions
