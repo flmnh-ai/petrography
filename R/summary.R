@@ -7,16 +7,16 @@
 #' @return Summary tibble with per-image statistics
 #' @export
 summarize_by_image <- function(.data) {
-  .data %>%
-    group_by(image_name) %>%
-    summarise(
-      n_objects = n(),
+  .data |>
+    dplyr::group_by(image_name) |>
+    dplyr::summarise(
+      n_objects = dplyr::n(),
       total_area = sum(area, na.rm = TRUE),
-      mean_area = mean(area, na.rm = TRUE),
-      median_area = median(area, na.rm = TRUE),
-      mean_circularity = mean(circularity, na.rm = TRUE),
-      mean_eccentricity = mean(eccentricity, na.rm = TRUE),
-      area_cv = sd(area, na.rm = TRUE) / mean(area, na.rm = TRUE),
+      mean_area = stats::mean(area, na.rm = TRUE),
+      median_area = stats::median(area, na.rm = TRUE),
+      mean_circularity = stats::mean(circularity, na.rm = TRUE),
+      mean_eccentricity = stats::mean(eccentricity, na.rm = TRUE),
+      area_cv = stats::sd(area, na.rm = TRUE) / stats::mean(area, na.rm = TRUE),
       .groups = "drop"
     )
 }
@@ -39,10 +39,10 @@ get_population_stats <- function(.data) {
     unique_images = length(unique(.data$image_name)),
     mean_objects_per_image = nrow(.data) / length(unique(.data$image_name)),
     total_area = sum(.data$area, na.rm = TRUE),
-    mean_area = mean(.data$area, na.rm = TRUE),
-    median_area = median(.data$area, na.rm = TRUE),
+    mean_area = stats::mean(.data$area, na.rm = TRUE),
+    median_area = stats::median(.data$area, na.rm = TRUE),
     area_range = range(.data$area, na.rm = TRUE),
-    mean_circularity = mean(.data$circularity, na.rm = TRUE),
-    mean_eccentricity = mean(.data$eccentricity, na.rm = TRUE)
+    mean_circularity = stats::mean(.data$circularity, na.rm = TRUE),
+    mean_eccentricity = stats::mean(.data$eccentricity, na.rm = TRUE)
   )
 }

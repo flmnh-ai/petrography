@@ -21,12 +21,7 @@ Training **background removal** model for petrographic analysis.
 library(tidyverse)
 library(cli)
 library(fs)
-
-# Load our package functions
-source("../R/model.R")
-source("../R/training.R") 
-source("../R/prediction.R")
-source("../R/data_utils.R")
+library(petrographer)
 
 # Configuration
 config <- list(

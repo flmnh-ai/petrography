@@ -53,7 +53,7 @@ predict_image <- function(image_path, model, use_slicing = TRUE,
 
   # Check if any objects detected
   if (length(result$object_prediction_list) == 0) {
-    return(tibble())
+    return(tibble::tibble())
   }
 
   # Save visualization if requested
@@ -67,8 +67,8 @@ predict_image <- function(image_path, model, use_slicing = TRUE,
     )
   }
   # Calculate morphological properties and return formatted tibble
-  calculate_morphology_from_result(result, image_path) %>%
-    clean_names() %>%
+  calculate_morphology_from_result(result, image_path) |>
+    clean_names() |>
     enhance_results()
 }
 
@@ -140,12 +140,12 @@ predict_batch <- function(input_dir, model, use_slicing = TRUE,
 
   # Combine all results
   if (length(all_predictions) > 0) {
-    combined_results <- map_dfr(all_predictions, identity) %>%
-      clean_names() %>%
+    combined_results <- purrr::map_dfr(all_predictions, identity) |>
+      clean_names() |>
       enhance_results()
     return(combined_results)
   } else {
-    return(tibble())
+    return(tibble::tibble())
   }
 }
 
@@ -164,33 +164,33 @@ evaluate_training <- function(model_dir = "Detectron2_Models",
   metrics_file <- fs::path(model_dir, "metrics.json")
   log_file <- fs::path(model_dir, "log.txt")
 
-  training_data <- tibble()
+  training_data <- tibble::tibble()
 
   if (fs::file_exists(metrics_file)) {
     # Read metrics.json using pandas
-    pd <- import("pandas")
+    pd <- reticulate::import("pandas")
 
     # Read JSON lines file
     df <- pd$read_json(metrics_file, lines = TRUE)
 
     # Convert to R tibble
-    training_data <- py_to_r(df) %>%
-      as_tibble() %>%
+    training_data <- reticulate::py_to_r(df) |>
+      tibble::as_tibble() |>
       clean_names()
 
     # Separate training and validation metrics
-    training_metrics <- training_data %>%
-      select(-contains("bbox")) %>%  # Remove bbox validation metrics for cleaner view
-      filter(!is.na(iteration))
+    training_metrics <- training_data |>
+      dplyr::select(-dplyr::contains("bbox")) |>
+      dplyr::filter(!is.na(iteration))
 
-    validation_metrics <- training_data %>%
-      select(iteration, contains("bbox")) %>%
-      filter(!is.na(iteration), if_any(contains("bbox"), ~ !is.na(.)))
+    validation_metrics <- training_data |>
+      dplyr::select(iteration, dplyr::contains("bbox")) |>
+      dplyr::filter(!is.na(iteration), dplyr::if_any(dplyr::contains("bbox"), ~ !is.na(.)))
 
     # Save to CSV files
-    write_csv(training_metrics, fs::path(output_dir, "training_metrics.csv"))
+    readr::write_csv(training_metrics, fs::path(output_dir, "training_metrics.csv"))
     if (nrow(validation_metrics) > 0) {
-      write_csv(validation_metrics, fs::path(output_dir, "validation_metrics.csv"))
+      readr::write_csv(validation_metrics, fs::path(output_dir, "validation_metrics.csv"))
     }
 
     # Update training_data to include both

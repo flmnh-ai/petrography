@@ -2,7 +2,7 @@
 title: "Inclusions Detection Model Training"
 format: html
 params:
-  data_dir: "../data/processed/inclusions"
+  data_dir: "../../data/processed/inclusions"
   output_name: "inclusions_v2"
   num_classes: 2
   max_iter: 4000
@@ -21,12 +21,7 @@ Training **inclusions detection** model for petrographic analysis with extended 
 library(tidyverse)
 library(cli)
 library(fs)
-
-# Load our package functions
-source("../R/model.R")
-source("../R/training.R") 
-source("../R/prediction.R")
-source("../R/data_utils.R")
+library(petrographer)
 
 # Configuration
 config <- list(
@@ -59,8 +54,8 @@ if (!dir_exists(config$data_dir)) {
 train_dir <- path(config$data_dir, "train")
 val_dir <- path(config$data_dir, "val")
 
-train_images <- dir_ls(train_dir, regexp = "\\.(jpg|jpeg|png)$", ignore_case = TRUE)
-val_images <- dir_ls(val_dir, regexp = "\\.(jpg|jpeg|png)$", ignore_case = TRUE)
+train_images <- dir_ls(train_dir, regexp = "\\.(jpg|jpeg|png)$")
+val_images <- dir_ls(val_dir, regexp = "\\.(jpg|jpeg|png)$")
 
 train_anno <- file_exists(path(train_dir, "_annotations.coco.json"))
 val_anno <- file_exists(path(val_dir, "_annotations.coco.json"))

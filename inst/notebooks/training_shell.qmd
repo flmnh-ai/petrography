@@ -21,12 +21,7 @@ Training **shell detection** model for petrographic analysis with 5 object class
 library(tidyverse)
 library(cli)
 library(fs)
-
-# Load our package functions
-source("../R/model.R")
-source("../R/training.R") 
-source("../R/prediction.R")
-source("../R/data_utils.R")
+library(petrographer)
 
 # Configuration
 config <- list(

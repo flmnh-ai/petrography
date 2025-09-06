@@ -12,7 +12,7 @@ calculate_morphology_from_result <- function(result, image_path) {
   predictions <- result$object_prediction_list
 
   if (length(predictions) == 0) {
-    return(tibble())
+    return(tibble::tibble())
   }
 
   # Convert predictions to masks and calculate properties
@@ -55,9 +55,9 @@ calculate_morphology_from_result <- function(result, image_path) {
   }
 
   # Convert to tibble
-  morphology_list %>%
-    map_dfr(as_tibble) %>%
-    mutate(image_name = basename(image_path))
+  morphology_list |>
+    purrr::map_dfr(tibble::as_tibble) |>
+    dplyr::mutate(image_name = basename(image_path))
 }
 
 # ============================================================================
@@ -68,10 +68,10 @@ calculate_morphology_from_result <- function(result, image_path) {
 #' @param .data Data frame
 #' @return Data frame with cleaned names
 clean_names <- function(.data) {
-  names(.data) <- names(.data) %>%
-    str_replace_all("-", "_") %>%
-    str_replace_all("\\s+", "_") %>%
-    str_to_lower()
+  names(.data) <- names(.data) |>
+    stringr::str_replace_all("-", "_") |>
+    stringr::str_replace_all("\\s+", "_") |>
+    stringr::str_to_lower()
   .data
 }
 
@@ -81,20 +81,20 @@ clean_names <- function(.data) {
 enhance_results <- function(.data) {
   if (nrow(.data) == 0) return(.data)
 
-  .data %>%
-    mutate(
+  .data |>
+    dplyr::mutate(
       # Essential derived metrics
       log_area = log10(area),
       orientation_deg = orientation * 180 / pi,
 
       # Useful categories
-      size_category = case_when(
-        area < quantile(area, 0.33, na.rm = TRUE) ~ "small",
-        area < quantile(area, 0.67, na.rm = TRUE) ~ "medium",
+      size_category = dplyr::case_when(
+        area < stats::quantile(area, 0.33, na.rm = TRUE) ~ "small",
+        area < stats::quantile(area, 0.67, na.rm = TRUE) ~ "medium",
         TRUE ~ "large"
       ),
 
-      shape_category = case_when(
+      shape_category = dplyr::case_when(
         circularity > 0.8 ~ "circular",
         aspect_ratio > 2 ~ "elongated",
         eccentricity > 0.8 ~ "eccentric",

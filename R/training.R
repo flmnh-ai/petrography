@@ -83,31 +83,41 @@ train_model_local <- function(data_dir, output_name, max_iter, learning_rate, nu
   # Get the Python executable that reticulate is using
   python_exe <- reticulate::py_config()$python
 
-  # Build python command using reticulate's Python
-  python_cmd <- glue::glue("
-    {shQuote(python_exe)} src/train.py \\
-      --dataset-name {output_name}_train \\
-      --annotation-json {fs::path(data_dir, 'train', '_annotations.coco.json')} \\
-      --image-root {fs::path(data_dir, 'train')} \\
-      --val-annotation-json {fs::path(data_dir, 'val', '_annotations.coco.json')} \\
-      --val-image-root {fs::path(data_dir, 'val')} \\
-      --output-dir {output_dir} \\
-      --num-classes {num_classes} \\
-      --device {device} \\
-      --max-iter {max_iter} \\
-      --learning-rate {learning_rate} \\
-      --eval-period {eval_period} \\
-      --checkpoint-period {checkpoint_period}
-  ") |> stringr::str_replace_all("\\s+", " ") |> stringr::str_trim()
+  # Resolve packaged training script (inst/python/train.py)
+  train_script <- system.file("python", "train.py", package = "petrographer")
+
+  # Build argument vector to avoid shell quoting issues (spaces in paths)
+  args <- c(
+    train_script,
+    "--dataset-name", paste0(output_name, "_train"),
+    "--annotation-json", fs::path(data_dir, "train", "_annotations.coco.json"),
+    "--image-root", fs::path(data_dir, "train"),
+    "--val-annotation-json", fs::path(data_dir, "val", "_annotations.coco.json"),
+    "--val-image-root", fs::path(data_dir, "val"),
+    "--output-dir", output_dir,
+    "--num-classes", as.character(num_classes),
+    "--device", device,
+    "--max-iter", as.character(max_iter),
+    "--learning-rate", as.character(learning_rate),
+    "--eval-period", as.character(eval_period),
+    "--checkpoint-period", as.character(checkpoint_period)
+  )
+
+  # Pretty command for display
+  display_cmd <- paste(
+    shQuote(python_exe),
+    paste(vapply(args, shQuote, character(1)), collapse = " ")
+  )
 
   # Execute training using reticulate's Python environment
   cli::cli_alert_info("Using Python: {.path {python_exe}}")
   cli::cli_alert_info("Running training command")
-  cli::cli_code(python_cmd)
-  result <- system(python_cmd, wait = TRUE)
+  cli::cli_code(display_cmd)
 
-  if (result != 0) {
-    cli::cli_abort("Training failed with exit code: {result}")
+  res <- processx::run(python_exe, args = args, echo = TRUE, echo_cmd = FALSE, error_on_status = FALSE)
+
+  if (!identical(res$status, 0L)) {
+    cli::cli_abort("Training failed with exit code: {res$status}")
   }
 
   cli::cli_alert_success("Local training completed successfully!")
@@ -153,7 +163,7 @@ train_model_hpc <- function(data_dir, output_name, max_iter, learning_rate, num_
   cli::cli_alert_info("Monitoring job progress...")
 
   # Monitor job using future/mirai
-  future_result <- future({
+  future_result <- future::future({
     monitor_slurm_job(hpc_host, hpc_user, job_id, monitor_interval, remote_session_dir)
   })
 
