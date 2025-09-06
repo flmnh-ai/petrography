@@ -35,23 +35,23 @@ train_model <- function(data_dir,
 
 
   # Validate inputs
-  if (!dir.exists(data_dir)) {
-    stop("Data directory not found: ", data_dir)
+  if (!fs::dir_exists(data_dir)) {
+    cli::cli_abort("Data directory not found: {.path {data_dir}}")
   }
 
-  train_dir <- file.path(data_dir, "train", fsep = "/")
-  val_dir <- file.path(data_dir, "val", fsep = "/")
+  train_dir <- fs::path(data_dir, "train")
+  val_dir <- fs::path(data_dir, "val")
 
-  if (!dir.exists(train_dir) || !dir.exists(val_dir)) {
-    stop("Data directory must contain 'train' and 'val' subdirectories")
+  if (!fs::dir_exists(train_dir) || !fs::dir_exists(val_dir)) {
+    cli::cli_abort("Data directory must contain 'train' and 'val' subdirectories")
   }
 
-  if (!file.exists(file.path(train_dir, "_annotations.coco.json", fsep = "/"))) {
-    stop("Missing COCO annotations in train directory")
+  if (!fs::file_exists(fs::path(train_dir, "_annotations.coco.json"))) {
+    cli::cli_abort("Missing COCO annotations in train directory")
   }
 
-  if (!file.exists(file.path(val_dir, "_annotations.coco.json", fsep = "/"))) {
-    stop("Missing COCO annotations in val directory")
+  if (!fs::file_exists(fs::path(val_dir, "_annotations.coco.json"))) {
+    cli::cli_abort("Missing COCO annotations in val directory")
   }
 
   # Determine training mode
@@ -68,45 +68,49 @@ train_model <- function(data_dir,
 #' @keywords internal
 train_model_local <- function(data_dir, output_name, max_iter, learning_rate, num_classes, device, eval_period, checkpoint_period, local_output_dir) {
 
-  output_dir <- file.path(local_output_dir, output_name, fsep = "/")
-  dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+  output_dir <- fs::path(local_output_dir, output_name)
+  fs::dir_create(output_dir)
 
-  cat("🔬 Starting local training...\n")
-  cat("- Data directory:", data_dir, "\n")
-  cat("- Output directory:", output_dir, "\n")
-  cat("- Max iterations:", max_iter, "\n")
+  cli::cli_h2("Starting Local Training")
+  cli::cli_dl(c(
+    "Data directory" = data_dir,
+    "Output directory" = output_dir,
+    "Max iterations" = max_iter,
+    "Device" = device
+  ))
 
   # Get the Python executable that reticulate is using
   python_exe <- reticulate::py_config()$python
 
   # Build python command using reticulate's Python
-  python_cmd <- paste(
-    shQuote(python_exe), "src/train.py",
-    "--dataset-name", paste0(output_name, "_train"),
-    "--annotation-json", file.path(data_dir, "train", "_annotations.coco.json", fsep = "/"),
-    "--image-root", file.path(data_dir, "train", fsep = "/"),
-    "--val-annotation-json", file.path(data_dir, "val", "_annotations.coco.json", fsep = "/"),
-    "--val-image-root", file.path(data_dir, "val", fsep = "/"),
-    "--output-dir", output_dir,
-    "--num-classes", num_classes,
-    "--device", device,
-    "--max-iter", max_iter,
-    "--learning-rate", learning_rate,
-    "--eval-period", eval_period,
-    "--checkpoint-period", checkpoint_period  # 0 gets converted to 999999 in train.py
-  )
+  python_cmd <- glue::glue("
+    {shQuote(python_exe)} src/train.py \\
+      --dataset-name {output_name}_train \\
+      --annotation-json {fs::path(data_dir, 'train', '_annotations.coco.json')} \\
+      --image-root {fs::path(data_dir, 'train')} \\
+      --val-annotation-json {fs::path(data_dir, 'val', '_annotations.coco.json')} \\
+      --val-image-root {fs::path(data_dir, 'val')} \\
+      --output-dir {output_dir} \\
+      --num-classes {num_classes} \\
+      --device {device} \\
+      --max-iter {max_iter} \\
+      --learning-rate {learning_rate} \\
+      --eval-period {eval_period} \\
+      --checkpoint-period {checkpoint_period}
+  ") |> stringr::str_replace_all("\\s+", " ") |> stringr::str_trim()
 
   # Execute training using reticulate's Python environment
-  cat("🚀 Using Python:", python_exe, "\n")
-  cat("🚀 Running training command:\n", python_cmd, "\n")
+  cli::cli_alert_info("Using Python: {.path {python_exe}}")
+  cli::cli_alert_info("Running training command")
+  cli::cli_code(python_cmd)
   result <- system(python_cmd, wait = TRUE)
 
   if (result != 0) {
-    stop("Training failed with exit code: ", result)
+    cli::cli_abort("Training failed with exit code: {result}")
   }
 
-  cat("✅ Local training completed successfully!\n")
-  cat("📁 Model saved to:", output_dir, "\n")
+  cli::cli_alert_success("Local training completed successfully!")
+  cli::cli_alert_info("Model saved to: {.path {output_dir}}")
 
   return(output_dir)
 }
@@ -118,34 +122,34 @@ train_model_hpc <- function(data_dir, output_name, max_iter, learning_rate, num_
                            cleanup_remote, monitor_interval) {
 
   if (is.null(hpc_base_dir)) {
-    stop("Missing `hpc_base_dir`: please specify the base path for training files on your HPC system.")
+    cli::cli_abort("Missing `hpc_base_dir`: please specify the base path for training files on your HPC system.")
   }
 
   # Check SSH connectivity
   if (!test_ssh_connection(hpc_host, hpc_user)) {
-    stop("Cannot connect to HPC host: ", hpc_host)
+    cli::cli_abort("Cannot connect to HPC host: {hpc_host}")
   }
 
-  cat("🔗 Connected to HPC:", hpc_host, "\n")
+  cli::cli_alert_success("Connected to HPC: {hpc_host}")
 
   # Setup remote directories
   remote_session_dir <- setup_remote_directories(hpc_host, hpc_user, hpc_base_dir, output_name)
 
   # Sync data to HPC
-  cat("📤 Syncing data to HPC...\n")
+  cli::cli_alert_info("Syncing data to HPC...")
   sync_data_to_hpc(data_dir, hpc_host, hpc_user, remote_session_dir)
 
   # Sync code to HPC
-  cat("📤 Syncing training code to HPC...\n")
+  cli::cli_alert_info("Syncing training code to HPC...")
   sync_code_to_hpc(hpc_host, hpc_user, remote_session_dir)
 
   # Generate and submit SLURM job
-  cat("🎯 Generating and submitting SLURM job...\n")
+  cli::cli_alert_info("Generating and submitting SLURM job...")
   job_id <- submit_slurm_job(hpc_host, hpc_user, remote_session_dir, output_name,
                             max_iter, learning_rate, num_classes, eval_period, checkpoint_period)
 
-  cat("🔄 Job submitted with ID:", job_id, "\n")
-  cat("⏱️  Monitoring job progress...\n")
+  cli::cli_alert_success("Job submitted with ID: {job_id}")
+  cli::cli_alert_info("Monitoring job progress...")
 
   # Monitor job using future/mirai
   future_result <- future({
@@ -156,24 +160,24 @@ train_model_hpc <- function(data_dir, output_name, max_iter, learning_rate, num_
   job_status <- value(future_result)
 
   if (job_status != "COMPLETED") {
-    stop("Training job failed with status: ", job_status)
+    cli::cli_abort("Training job failed with status: {job_status}")
   }
 
-  cat("✅ Training completed successfully on HPC!\n")
+  cli::cli_alert_success("Training completed successfully on HPC!")
 
   # Download trained model
-  cat("📥 Downloading trained model...\n")
+  cli::cli_alert_info("Downloading trained model...")
   local_model_dir <- download_trained_model(hpc_host, hpc_user, remote_session_dir,
                                            output_name, local_output_dir)
 
   # Cleanup remote files if requested
   if (cleanup_remote) {
-    cat("🧹 Cleaning up remote files...\n")
+    cli::cli_alert_info("Cleaning up remote files...")
     cleanup_remote_session(hpc_host, hpc_user, remote_session_dir)
   }
 
-  cat("🎉 HPC training pipeline completed!\n")
-  cat("📁 Model saved to:", local_model_dir, "\n")
+  cli::cli_alert_success("HPC training pipeline completed!")
+  cli::cli_alert_info("Model saved to: {.path {local_model_dir}}")
 
   return(local_model_dir)
 }

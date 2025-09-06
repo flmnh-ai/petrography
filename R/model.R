@@ -15,14 +15,14 @@ load_model <- function(model_path = NULL,
                        device = "cpu") {
 
   cache <- get_model_cache_dir()
-  default_model <- file.path(cache, "model_final.pth")
-  default_config <- file.path(cache, "config.yaml")
+  default_model <- fs::path(cache, "model_final.pth")
+  default_config <- fs::path(cache, "config.yaml")
 
   if (is.null(model_path)) model_path <- default_model
   if (is.null(config_path)) config_path <- default_config
 
-  if (!file.exists(model_path) || !file.exists(config_path)) {
-    message("Model files not found. Downloading...")
+  if (!fs::file_exists(model_path) || !fs::file_exists(config_path)) {
+    cli::cli_alert_info("Model files not found. Downloading...")
     download_model()
   }
 
@@ -53,28 +53,28 @@ get_model_cache_dir <- function() {
 
 download_model <- function(force = FALSE) {
   cache_dir <- get_model_cache_dir()
-  dir.create(cache_dir, showWarnings = FALSE, recursive = TRUE)
+  fs::dir_create(cache_dir)
 
   model_url <- "https://www.dropbox.com/scl/fi/3ilo6msi7r1d9fmfn1zq2/model_final.pth?rlkey=6x2ielfy0fr7kijkysa0i3b3l&st=wbfz9k50&dl=1"
   config_url <- "https://www.dropbox.com/scl/fi/kjlggms8k1x4ghhjiph39/config.yaml?rlkey=8lqiu9eeh6xtjcoj2v7ksyb3k&st=haqn63up&dl=1"
 
-  model_path <- file.path(cache_dir, "model_final.pth")
-  config_path <- file.path(cache_dir, "config.yaml")
+  model_path <- fs::path(cache_dir, "model_final.pth")
+  config_path <- fs::path(cache_dir, "config.yaml")
 
-  if (!file.exists(model_path) || force) {
-    message("Downloading model weights...")
+  if (!fs::file_exists(model_path) || force) {
+    cli::cli_alert_info("Downloading model weights...")
     download.file(model_url, model_path, mode = "wb")
-    message("Model weights saved to: ", model_path)
+    cli::cli_alert_success("Model weights saved to: {.path {model_path}}")
   } else {
-    message("Model weights already present at: ", model_path)
+    cli::cli_alert_info("Model weights already present at: {.path {model_path}}")
   }
 
-  if (!file.exists(config_path) || force) {
-    message("Downloading model config...")
+  if (!fs::file_exists(config_path) || force) {
+    cli::cli_alert_info("Downloading model config...")
     download.file(config_url, config_path, mode = "wb")
-    message("Model config saved to: ", config_path)
+    cli::cli_alert_success("Model config saved to: {.path {config_path}}")
   } else {
-    message("Model config already present at: ", config_path)
+    cli::cli_alert_info("Model config already present at: {.path {config_path}}")
   }
 
   return(list(model_path = model_path, config_path = config_path))
@@ -82,10 +82,10 @@ download_model <- function(force = FALSE) {
 
 clear_model_cache <- function() {
   cache_dir <- get_model_cache_dir()
-  if (dir.exists(cache_dir)) {
-    unlink(cache_dir, recursive = TRUE)
-    message("Cleared model cache at: ", cache_dir)
+  if (fs::dir_exists(cache_dir)) {
+    fs::dir_delete(cache_dir)
+    cli::cli_alert_success("Cleared model cache at: {.path {cache_dir}}")
   } else {
-    message("No model cache found at: ", cache_dir)
+    cli::cli_alert_info("No model cache found at: {.path {cache_dir}}")
   }
 }

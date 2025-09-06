@@ -9,29 +9,29 @@
 #' @param slice_size Size of slices for SAHI in pixels (default: 512)
 #' @param overlap Overlap ratio between slices (default: 0.2)
 #' @param output_dir Output directory (auto-generated if NULL)
-#' @param save_visualization Whether to save prediction visualization (default: TRUE)
+#' @param save_visualizations Whether to save prediction visualization (default: TRUE)
 #' @return Tibble with detection results and morphological properties
 #' @export
 predict_image <- function(image_path, model, use_slicing = TRUE,
                          slice_size = 512, overlap = 0.2, output_dir = NULL,
-                         save_visualization = TRUE) {
+                         save_visualizations = TRUE) {
 
   # Validate inputs
-  if (!file.exists(image_path)) {
-    stop("Image file not found: ", image_path)
+  if (!fs::file_exists(image_path)) {
+    cli::cli_abort("Image file not found: {.path {image_path}}")
   }
 
   if (!inherits(model, "PetrographyModel")) {
-    stop("model must be a PetrographyModel object from load_model()")
+    cli::cli_abort("model must be a PetrographyModel object from load_model()")
   }
 
   # Set up output directory
   if (is.null(output_dir)) {
-    output_dir <- file.path("results", tools::file_path_sans_ext(basename(image_path)))
+    output_dir <- fs::path("results", tools::file_path_sans_ext(fs::path_file(image_path)))
   }
 
-  if (save_visualization) {
-    dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+  if (save_visualizations) {
+    fs::dir_create(output_dir)
   }
 
   # Run SAHI prediction
@@ -57,7 +57,7 @@ predict_image <- function(image_path, model, use_slicing = TRUE,
   }
 
   # Save visualization if requested
-  if (save_visualization) {
+  if (save_visualizations) {
     image_name <- tools::file_path_sans_ext(basename(image_path))
     result$export_visuals(
       export_dir = output_dir,
@@ -88,17 +88,17 @@ predict_batch <- function(input_dir, model, use_slicing = TRUE,
                          save_visualizations = TRUE) {
 
   # Validate inputs
-  if (!dir.exists(input_dir)) {
-    stop("Input directory not found: ", input_dir)
+  if (!fs::dir_exists(input_dir)) {
+    cli::cli_abort("Input directory not found: {.path {input_dir}}")
   }
 
   if (!inherits(model, "PetrographyModel")) {
-    stop("model must be a PetrographyModel object from load_model()")
+    cli::cli_abort("model must be a PetrographyModel object from load_model()")
   }
 
   # Create output directory
   if (save_visualizations) {
-    dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+    fs::dir_create(output_dir)
   }
 
   # Use SAHI's native batch prediction - much more efficient!
@@ -151,23 +151,22 @@ predict_batch <- function(input_dir, model, use_slicing = TRUE,
 
 #' Evaluate model training
 #' @param model_dir Directory containing trained model (default: 'Detectron2_Models')
-#' @param device Device to use for evaluation (default: 'cpu')
 #' @param output_dir Output directory for results (default: 'results/evaluation')
 #' @return List with training data tibble and summary statistics
 #' @export
-evaluate_training <- function(model_dir = "Detectron2_Models", device = "cpu",
+evaluate_training <- function(model_dir = "Detectron2_Models",
                              output_dir = "results/evaluation") {
 
   # Create output directory
-  dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+  fs::dir_create(output_dir)
 
   # Look for training metrics
-  metrics_file <- file.path(model_dir, "metrics.json")
-  log_file <- file.path(model_dir, "log.txt")
+  metrics_file <- fs::path(model_dir, "metrics.json")
+  log_file <- fs::path(model_dir, "log.txt")
 
   training_data <- tibble()
 
-  if (file.exists(metrics_file)) {
+  if (fs::file_exists(metrics_file)) {
     # Read metrics.json using pandas
     pd <- import("pandas")
 
@@ -189,15 +188,15 @@ evaluate_training <- function(model_dir = "Detectron2_Models", device = "cpu",
       filter(!is.na(iteration), if_any(contains("bbox"), ~ !is.na(.)))
 
     # Save to CSV files
-    write_csv(training_metrics, file.path(output_dir, "training_metrics.csv"))
+    write_csv(training_metrics, fs::path(output_dir, "training_metrics.csv"))
     if (nrow(validation_metrics) > 0) {
-      write_csv(validation_metrics, file.path(output_dir, "validation_metrics.csv"))
+      write_csv(validation_metrics, fs::path(output_dir, "validation_metrics.csv"))
     }
 
     # Update training_data to include both
     training_data <- training_metrics
 
-  } else if (file.exists(log_file)) {
+  } else if (fs::file_exists(log_file)) {
     # Could add log parsing here if needed
     warning("Only log.txt found - metrics.json preferred for analysis")
   }
