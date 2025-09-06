@@ -1,0 +1,212 @@
+---
+title: "Shell Detection Model Training"
+format: html
+params:
+  data_dir: "../data/processed/shell_mixed"
+  output_name: "shell_detector_v3"
+  num_classes: 5
+  max_iter: 2000
+  learning_rate: 0.00025
+  device: "cuda"
+  eval_period: 100
+  hpc_host: "hpg"
+  hpc_user: "nicolas.gauthier"
+---
+
+Training **shell detection** model for petrographic analysis with 5 object classes.
+
+## Setup
+
+```{r setup, message=FALSE}
+library(tidyverse)
+library(cli)
+library(fs)
+
+# Load our package functions
+source("../R/model.R")
+source("../R/training.R") 
+source("../R/prediction.R")
+source("../R/data_utils.R")
+
+# Configuration
+config <- list(
+  data_dir = params$data_dir,
+  output_name = params$output_name,
+  num_classes = params$num_classes,
+  max_iter = params$max_iter,
+  learning_rate = params$learning_rate,
+  device = params$device,
+  eval_period = params$eval_period,
+  hpc_host = if(params$hpc_host == "NULL") NULL else params$hpc_host,
+  hpc_user = params$hpc_user,
+  hpc_base_dir = "/blue/nicolas.gauthier/nicolas.gauthier"
+)
+
+cli_h1("Training Configuration")
+cli_dl(config[!names(config) %in% c("hpc_base_dir")])
+```
+
+## Training
+
+```{r training}
+cli_h2("Data Validation")
+
+# Validate and show dataset info
+if (!dir_exists(config$data_dir)) {
+  cli_abort("Data directory not found: {config$data_dir}")
+}
+
+train_dir <- path(config$data_dir, "train")
+val_dir <- path(config$data_dir, "val")
+
+train_images <- dir_ls(train_dir, regexp = "\\.(jpg|jpeg|png)$", ignore_case = TRUE)
+val_images <- dir_ls(val_dir, regexp = "\\.(jpg|jpeg|png)$", ignore_case = TRUE)
+
+train_anno <- file_exists(path(train_dir, "_annotations.coco.json"))
+val_anno <- file_exists(path(val_dir, "_annotations.coco.json"))
+
+cli_dl(c(
+  "Train images" = length(train_images),
+  "Val images" = length(val_images), 
+  "Train annotations" = if(train_anno) "✓" else "✗",
+  "Val annotations" = if(val_anno) "✓" else "✗"
+))
+
+# Dataset size
+all_files <- dir_ls(config$data_dir, recurse = TRUE, type = "file")
+dataset_mb <- sum(file_size(all_files), na.rm = TRUE) |> 
+  as.numeric() |> 
+  (\(x) round(x / 1024^2, 1))()
+
+cli_alert_info("Total dataset size: {dataset_mb} MB")
+
+cli_h2("Starting Training")
+
+start_time <- Sys.time()
+
+# Train model (handles future/async internally)
+model_path <- do.call(train_model, config)
+
+duration <- difftime(Sys.time(), start_time, units = "mins") |> as.numeric()
+cli_alert_success("Training completed in {round(duration, 1)} minutes")
+cli_alert_info("Model saved to: {model_path}")
+```
+
+## Evaluation
+
+```{r evaluation}
+cli_h2("Evaluating Results")
+
+# Load training metrics
+eval_result <- evaluate_training(model_dir = model_path)
+summary_stats <- eval_result$summary
+
+cli_alert_info("Training iterations: {summary_stats$total_iterations}")
+cli_alert_info("Validation evaluations: {summary_stats$validation_evaluations}")
+
+# Final metrics if available
+if (nrow(eval_result$training_data) > 0) {
+  final_metrics <- tail(eval_result$training_data, 1)
+  cli_alert_info("Final loss: {round(final_metrics$total_loss, 4)}")
+}
+```
+
+## Visualization
+
+```{r plots, fig.width=10, fig.height=6}
+if (nrow(eval_result$training_data) > 0) {
+  # Simple training curves
+  training_df <- eval_result$training_data
+  
+  # Loss plot
+  loss_plot <- training_df |>
+    select(iteration, contains("loss")) |>
+    pivot_longer(-iteration, names_to = "loss_type", values_to = "loss") |>
+    filter(!is.na(loss)) |>
+    ggplot(aes(iteration, loss, color = loss_type)) +
+    geom_line() +
+    facet_wrap(~loss_type, scales = "free_y") +
+    labs(title = glue::glue("Training Loss - {config$output_name}")) +
+    theme_minimal() +
+    theme(legend.position = "none")
+  
+  print(loss_plot)
+  
+  # Validation metrics if available
+  if ("validation_data" %in% names(eval_result) && nrow(eval_result$validation_data) > 0) {
+    val_plot <- eval_result$validation_data |>
+      pivot_longer(-iteration, names_to = "metric", values_to = "value") |>
+      filter(!is.na(value)) |>
+      ggplot(aes(iteration, value)) +
+      geom_line() +
+      geom_point(size = 0.5) +
+      facet_wrap(~metric, scales = "free_y") +
+      labs(title = glue::glue("Validation Metrics - {config$output_name}")) +
+      theme_minimal()
+    
+    print(val_plot)
+  }
+}
+```
+
+## Model Testing
+
+```{r testing}
+cli_h2("Testing Model")
+
+# Load trained model
+model <- load_model(
+  model_path = path(model_path, "model_final.pth"),
+  config_path = path(model_path, "config.yaml"),
+  device = config$device
+)
+
+# Test on validation sample
+val_images <- dir_ls(path(config$data_dir, "val"), 
+                        regexp = "\\.(jpg|jpeg|png)$", ignore_case = TRUE)
+
+if (length(val_images) > 0) {
+  test_image <- val_images[1]
+  
+  test_result <- predict_image(
+    image_path = test_image,
+    model = model,
+    output_dir = path("results", glue::glue("{config$output_name}_test"))
+  )
+  
+  cli_alert_info("Test image: {path_file(test_image)}")
+  cli_alert_info("Objects detected: {nrow(test_result)}")
+  
+  if (nrow(test_result) > 0) {
+    cli_alert_info("Mean confidence: {round(mean(test_result$confidence), 3)}")
+  }
+} else {
+  cli_alert_warning("No validation images found for testing")
+}
+```
+
+## Summary
+
+```{r summary}
+cli_h2("Training Summary")
+
+cli_dl(c(
+  "Model" = config$output_name,
+  "Duration" = glue::glue("{round(duration, 1)} minutes"),
+  "Iterations" = summary_stats$total_iterations,
+  "Mode" = if(is.null(config$hpc_host)) "Local" else glue::glue("HPC ({config$hpc_host})"),
+  "Location" = model_path
+))
+
+if (exists("test_result") && nrow(test_result) > 0) {
+  cli_alert_success("Model successfully tested with {nrow(test_result)} detections")
+}
+
+cli_h3("Next Steps")
+cli_ul(c(
+  "Review training convergence",
+  "Test on additional images", 
+  "Compare with previous versions",
+  "Archive model in zoo"
+))
+```
