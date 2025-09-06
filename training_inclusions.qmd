@@ -8,10 +8,10 @@ editor: visual
 
 **Key Features:**
 
-- Unified interface for local and HPC training
-- Automatic data synchronization and job management  
-- Real-time progress monitoring
-- Seamless model deployment after training
+-   Unified interface for local and HPC training
+-   Automatic data synchronization and job management\
+-   Real-time progress monitoring
+-   Seamless model deployment after training
 
 ## Setup and Dependencies
 
@@ -36,12 +36,12 @@ Set up paths and training parameters.
 
 ```{r config}
 # Data configuration
-DATA_DIR <- "data/processed/shell_mixed"  # Directory with train/ and val/ subdirectories
-OUTPUT_NAME <- "shell_detector_v3"
-NUM_CLASSES <- 5
+DATA_DIR <- "data/processed/inclusions"  # Directory with train/ and val/ subdirectories
+OUTPUT_NAME <- "inclusions_v2"
+NUM_CLASSES <- 2
 
 # Training parameters
-MAX_ITER <- 2000
+MAX_ITER <- 4000
 LEARNING_RATE <- 0.00025
 DEVICE <- "cuda"  # Options: "cpu", "cuda", "mps"
 EVAL_PERIOD <- 100  # Validation evaluation frequency
@@ -93,33 +93,6 @@ if (dir.exists(DATA_DIR)) {
   dataset_size <- sum(file.info(list.files(DATA_DIR, recursive = TRUE, full.names = TRUE))$size, na.rm = TRUE)
   dataset_size_mb <- round(dataset_size / 1024^2, 1)
   cat("- Total dataset size:", dataset_size_mb, "MB\n")
-}
-```
-
-## Python Environment Check
-
-Verify the Python environment that will be used for training.
-
-```{r python-env}
-# Display Python configuration
-py_config <- py_config()
-
-cat("🐍 Python Environment:\n")
-cat("- Python executable:", py_config$python, "\n")
-cat("- Python version:", as.character(py_config$version), "\n")
-cat("- Virtual environment:", py_config$virtualenv, "\n")
-
-# Check key dependencies
-cat("\n📦 Key Dependencies:\n")
-dependencies <- c("torch", "detectron2", "sahi")
-
-for (dep in dependencies) {
-  available <- tryCatch({
-    import(dep)
-    TRUE
-  }, error = function(e) FALSE)
-  
-  cat("- ", dep, ":", if(available) "✅ Available" else "❌ Missing", "\n")
 }
 ```
 
@@ -229,7 +202,7 @@ if (nrow(eval_result$training_data) > 0) {
         filter(!is.na(metric_value)) %>%
         ggplot(aes(x = iteration, y = metric_value, color = metric_type)) +
         geom_line(alpha = 0.8) + 
-        geom_point(alpha = 0.6, size = 1) +
+        geom_point(alpha = 0.6, size = 1.2) +
         facet_wrap(~metric_type, scales = "free_y") +
         labs(title = paste("Validation Metrics -", OUTPUT_NAME),
              x = "Iteration", y = "Metric Value") +
@@ -279,13 +252,14 @@ sample_images <- list.files(file.path(DATA_DIR, "val"),
                            full.names = TRUE, ignore.case = TRUE)
 
 if (length(sample_images) > 0) {
-  test_image <- sample_images[1]
+  test_image <- sample_images[3]
   cat("🔬 Testing on:", basename(test_image), "\n")
   
   # Run prediction
   test_result <- predict_image(
     image_path = test_image,
     model = new_model,
+    use_slicing = FALSE,
     output_dir = file.path("results", paste0(OUTPUT_NAME, "_test"))
   )
   
@@ -300,12 +274,14 @@ if (length(sample_images) > 0) {
   cat("No validation images found for testing\n")
 }
 ```
-Plot predicted image
-```{r}
 
-  predicted_image <- image_read("results/shell_detector_v3_test/clam_NPP_037_2_6mm_tile_0_0_ppl_jpg.rf.cd0126f6e873cac09da23b2fa4371ade_prediction.png")
+Plot predicted image
+
+```{r}
+list.files(file.path("results", paste0(OUTPUT_NAME, "_test")), full.names = TRUE)
+predicted_image <- image_read("results/inclusions_v2_test/clam_NPP_038_2_6mm_tile_1792_896_xpl_jpg.rf.9a40626843df9f273e2c964ff6440cb5_prediction.png")
   
-  plot(predicted_image)
+plot(predicted_image)
 ```
 
 ## Training Summary

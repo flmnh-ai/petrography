@@ -8,10 +8,10 @@ editor: visual
 
 **Key Features:**
 
-- Unified interface for local and HPC training
-- Automatic data synchronization and job management  
-- Real-time progress monitoring
-- Seamless model deployment after training
+-   Unified interface for local and HPC training
+-   Automatic data synchronization and job management\
+-   Real-time progress monitoring
+-   Seamless model deployment after training
 
 ## Setup and Dependencies
 
@@ -36,9 +36,9 @@ Set up paths and training parameters.
 
 ```{r config}
 # Data configuration
-DATA_DIR <- "data/processed/shell_mixed"  # Directory with train/ and val/ subdirectories
-OUTPUT_NAME <- "shell_detector_v3"
-NUM_CLASSES <- 5
+DATA_DIR <- "data/processed/background_removal"  # Directory with train/ and val/ subdirectories
+OUTPUT_NAME <- "background_removal_v2"
+NUM_CLASSES <- 2
 
 # Training parameters
 MAX_ITER <- 2000
@@ -286,6 +286,8 @@ if (length(sample_images) > 0) {
   test_result <- predict_image(
     image_path = test_image,
     model = new_model,
+    use_slicing = TRUE,
+    slice_size = 1500,
     output_dir = file.path("results", paste0(OUTPUT_NAME, "_test"))
   )
   
@@ -300,12 +302,14 @@ if (length(sample_images) > 0) {
   cat("No validation images found for testing\n")
 }
 ```
-Plot predicted image
-```{r}
 
-  predicted_image <- image_read("results/shell_detector_v3_test/clam_NPP_037_2_6mm_tile_0_0_ppl_jpg.rf.cd0126f6e873cac09da23b2fa4371ade_prediction.png")
+Plot predicted image
+
+```{r}
+list.files(file.path("results", paste0(OUTPUT_NAME, "_test")), full.names = TRUE)
+predicted_image <- image_read("results/background_removal_v2_test/8AL458-1-2-7_jpeg.rf.12b96c51460b5d822788d93c3fd20121_prediction.png")
   
-  plot(predicted_image)
+plot(predicted_image)
 ```
 
 ## Training Summary
