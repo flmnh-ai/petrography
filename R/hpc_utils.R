@@ -82,7 +82,9 @@ sync_data_to_hpc <- function(local_data_dir, hpc_host, hpc_user = NULL, remote_s
 sync_code_to_hpc <- function(hpc_host, hpc_user = NULL, remote_session_dir) {
   target <- if (!is.null(hpc_user)) glue::glue("{hpc_user}@{hpc_host}") else hpc_host
 
-  rsync_cmd <- glue::glue("rsync -avz src/train.py {shQuote(paste0(target, ':', fs::path(remote_session_dir, 'src/')))}")
+  train_script <- system.file("python", "train.py", package = "petrographer")
+  rsync_cmd <- glue::glue("rsync -avz {train_script} {shQuote(paste0(target, ':', fs::path(remote_session_dir,
+  'src/')))}")
 
   result <- system(rsync_cmd)
   if (result != 0) cli::cli_abort("Failed to sync training code to HPC")

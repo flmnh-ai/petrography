@@ -47,7 +47,7 @@ load_model <- function(model_path = NULL,
 
 
 get_model_cache_dir <- function() {
-  tools::R_user_dir("petrography", which = "cache")
+  tools::R_user_dir("petrographer", which = "cache")
 }
 
 

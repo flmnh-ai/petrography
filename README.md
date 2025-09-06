@@ -1,4 +1,4 @@
-# Petrographic Image Analysis with Detectron2 and SAHI
+# petrographer: Petrographic Image Analysis with Detectron2 and SAHI
 
 Automated instance segmentation and morphological analysis of petrographic thin sections using state-of-the-art computer vision models.
 

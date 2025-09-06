@@ -6,6 +6,7 @@
 #' @param data_dir Local directory containing train and val subdirectories with COCO annotations
 #' @param output_name Name for the trained model (default: "petrography_model")
 #' @param max_iter Maximum training iterations (default: 5000)
+#' @param learning_rate Learning rate for training (default: 0.001)
 #' @param num_classes Number of object classes (default: 5)
 #' @param device Device for local training: 'cpu', 'cuda', 'mps' (default: 'cpu')
 #' @param eval_period Validation evaluation frequency in iterations (default: 500)

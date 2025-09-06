@@ -1,0 +1,38 @@
+Package: petrographer
+Title: Petrographic Thin Section Analysis with Deep Learning
+Version: 0.0.0.9000
+Authors@R: c(
+        person("Nicolas", "Gauthier", , "nicolas.gauthier@ufl.edu", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0002-2225-5827")),
+        person("Ashley", "Rutkoski", , "arutkoski@ufl.edu", role = c("aut")))
+Description: Automated petrographic analysis of thin section images using
+    deep learning models. Provides tools for training Detectron2 models,
+    running predictions with SAHI (Slicing Aided Hyper Inference),
+    calculating morphological properties, and analyzing results. Supports
+    both local and HPC training workflows with seamless R-Python
+    integration via reticulate.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Imports: 
+    cli,
+    dplyr,
+    fs,
+    future,
+    glue,
+    purrr,
+    readr,
+    reticulate,
+    stringr,
+    tibble,
+    tidyr
+Suggests: 
+    magick,
+    patchwork,
+    scico,
+    tools
+URL: https://flmnh-ai.github.io/petrographer/
+BugReports: https://github.com/flmnh-ai/petrographer/issues
+SystemRequirements: Python (>= 3.8), PyTorch, Detectron2, SAHI,
+    scikit-image, pandas

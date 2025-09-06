@@ -1,0 +1,17 @@
+^petrographer\.Rproj$ 
+^\.Rproj\.user$
+^\.DS_Store$
+^\.Rhistory$
+^\.RData$
+
+^LICENSE\.md$
+^_pkgdown\.yml$
+^docs(/|$)
+^pkgdown(/|$)
+^\.github(/|$)
+
+^archived(/|$)
+^data(/|$)
+^results(/|$)
+^Detectron2_Models(/|$)
+^\.claude(/|$)

@@ -50,3 +50,5 @@ src/__pycache__/
 *DS_store
 *.html
 /archived
+.Rproj.user
+docs
