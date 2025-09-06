@@ -572,7 +572,7 @@ train_model_hpc <- function(data_dir, output_name, max_iter, num_classes, eval_p
 
   # Monitor job using future/mirai
   future_result <- future({
-    monitor_slurm_job(hpc_host, hpc_user, job_id, monitor_interval)
+    monitor_slurm_job(hpc_host, hpc_user, job_id, monitor_interval, remote_session_dir)
   })
 
   # Wait for completion
@@ -769,8 +769,16 @@ generate_slurm_script <- function(remote_session_dir, output_name, max_iter, num
 
 #' Monitor SLURM job status until completion
 #' @keywords internal
-monitor_slurm_job <- function(hpc_host, hpc_user = NULL, job_id, monitor_interval = 30) {
-  target <- if (!is.null(hpc_user)) paste0(hpc_user, "@", hpc_host) else hpc_host
+monitor_slurm_job <- function(hpc_host, hpc_user = NULL, job_id, monitor_interval = 30, remote_session_dir) {
+  # Use hpc_host directly since SSH config handles user
+  if (hpc_host == "hpg" && is.null(hpc_user)) {
+    target <- hpc_host
+  } else {
+    target <- if (!is.null(hpc_user)) paste0(hpc_user, "@", hpc_host) else hpc_host
+  }
+
+  # Track last line count to show only new output
+  last_line_count <- 0
 
   while (TRUE) {
     # Check if job is still in queue
@@ -780,6 +788,27 @@ monitor_slurm_job <- function(hpc_host, hpc_user = NULL, job_id, monitor_interva
     status_result <- tryCatch({
       system(ssh_cmd, intern = TRUE, ignore.stderr = TRUE)
     }, error = function(e) character(0))
+
+    # Check output file for progress
+    output_file <- file.path(remote_session_dir, paste0("petrography_train_", job_id, ".out"))
+
+    # Get line count and tail of output file
+    output_cmd <- paste("ssh", target,
+                        shQuote(paste("if [ -f", output_file, "]; then wc -l <", output_file,
+                                      "&& tail -n 10", output_file, "; fi")))
+
+    output_result <- tryCatch({
+      system(output_cmd, intern = TRUE, ignore.stderr = TRUE)
+    }, error = function(e) character(0))
+
+    if (length(output_result) > 0) {
+      current_line_count <- as.numeric(output_result[1])
+      if (current_line_count > last_line_count) {
+        cat("\n📊 Training progress:\n")
+        cat(paste(output_result[-1], collapse = "\n"), "\n")
+        last_line_count <- current_line_count
+      }
+    }
 
     if (length(status_result) == 0) {
       # Not in queue anymore, check final state
@@ -792,6 +821,23 @@ monitor_slurm_job <- function(hpc_host, hpc_user = NULL, job_id, monitor_interva
 
       final_status <- if (length(final_status) > 0) trimws(final_status[1]) else "UNKNOWN"
       cat("🏁 Job", job_id, "final status:", final_status, "\n")
+
+      # Show any error output if job failed
+      if (final_status != "COMPLETED") {
+        error_file <- file.path(remote_session_dir, paste0("petrography_train_", job_id, ".err"))
+        error_cmd <- paste("ssh", target,
+                           shQuote(paste("if [ -f", error_file, "]; then tail -n 20", error_file, "; fi")))
+
+        error_output <- tryCatch({
+          system(error_cmd, intern = TRUE, ignore.stderr = TRUE)
+        }, error = function(e) character(0))
+
+        if (length(error_output) > 0) {
+          cat("\n❌ Error output:\n")
+          cat(paste(error_output, collapse = "\n"), "\n")
+        }
+      }
+
       return(final_status)
     }
 
