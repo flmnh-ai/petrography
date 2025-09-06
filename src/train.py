@@ -37,28 +37,28 @@ def setup_cfg(args):
     cfg.DATALOADER.NUM_WORKERS = args.num_workers
     cfg.DATALOADER.PIN_MEMORY  = True
 
-    cfg.SOLVER.IMS_PER_BATCH      = 4
-    cfg.SOLVER.BASE_LR            = 0.00025
+    cfg.SOLVER.IMS_PER_BATCH      = 16
+    cfg.SOLVER.BASE_LR            = 0.001
     cfg.SOLVER.MAX_ITER           = args.max_iter
-    cfg.SOLVER.STEPS              = [3000, 4500]
+    cfg.SOLVER.STEPS              = (int(args.max_iter * 0.75), int(args.max_iter * 0.9))
     cfg.SOLVER.GAMMA              = 0.1
-    cfg.SOLVER.WARMUP_ITERS       = 500
+    cfg.SOLVER.WARMUP_ITERS       = 1000
     cfg.SOLVER.WARMUP_FACTOR      = 1.0/1000
     checkpoint_period = args.checkpoint_period if args.checkpoint_period > 0 else 999999
     cfg.SOLVER.CHECKPOINT_PERIOD  = checkpoint_period
     cfg.SOLVER.AMP.ENABLED = args.device == "cuda"
 
-    cfg.INPUT.MIN_SIZE_TRAIN = (640,)
-    cfg.INPUT.MAX_SIZE_TRAIN = 640
-    cfg.INPUT.MIN_SIZE_TEST  = 640
-    cfg.INPUT.MAX_SIZE_TEST  = 640
+    cfg.INPUT.MIN_SIZE_TRAIN = (640, 672, 704, 736, 768, 800)
+    cfg.INPUT.MAX_SIZE_TRAIN = 1333
+    cfg.INPUT.MIN_SIZE_TEST  = 800
+    cfg.INPUT.MAX_SIZE_TEST  = 1333
     cfg.INPUT.RANDOM_FLIP    = "horizontal"
 
-    cfg.MODEL.ANCHOR_GENERATOR.SIZES = [[16], [32], [64], [128], [256]]
+    cfg.MODEL.ANCHOR_GENERATOR.SIZES = [[32], [64], [128], [256], [512]]
     cfg.MODEL.ANCHOR_GENERATOR.ASPECT_RATIOS = [[0.5, 1.0, 2.0]]
     cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512
     cfg.MODEL.ROI_HEADS.NUM_CLASSES          = args.num_classes
-    cfg.MODEL.BACKBONE.FREEZE_AT = 0
+    cfg.MODEL.BACKBONE.FREEZE_AT = 2
     cfg.TEST.DETECTIONS_PER_IMAGE = 500
 
     if args.opts:
@@ -117,7 +117,7 @@ if __name__ == "__main__":
     parser.add_argument("--num-workers", type=int, default=4)
     parser.add_argument("--num-classes", type=int, default=5)
     parser.add_argument("--device", default="cpu", choices=["cpu", "cuda", "mps"])
-    parser.add_argument("--max-iter", type=int, default=5000)
+    parser.add_argument("--max-iter", type=int, default=10000)
     parser.add_argument("--eval-period", type=int, default=500)
     parser.add_argument("--checkpoint-period", type=int, default=0)
     parser.add_argument("--opts", nargs=argparse.REMAINDER)
