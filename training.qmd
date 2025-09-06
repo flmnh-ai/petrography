@@ -143,6 +143,7 @@ model_path <- train_model(
   data_dir = DATA_DIR,
   output_name = OUTPUT_NAME,
   max_iter = MAX_ITER,
+  learning_rate = LEARNING_RATE,
   num_classes = NUM_CLASSES,
   device = DEVICE,
   eval_period = EVAL_PERIOD,

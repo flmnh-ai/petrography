@@ -38,7 +38,7 @@ def setup_cfg(args):
     cfg.DATALOADER.PIN_MEMORY  = True
 
     cfg.SOLVER.IMS_PER_BATCH      = 16
-    cfg.SOLVER.BASE_LR            = 0.001
+    cfg.SOLVER.BASE_LR            = args.learning_rate
     cfg.SOLVER.MAX_ITER           = args.max_iter
     cfg.SOLVER.STEPS              = (int(args.max_iter * 0.75), int(args.max_iter * 0.9))
     cfg.SOLVER.GAMMA              = 0.1
@@ -118,6 +118,7 @@ if __name__ == "__main__":
     parser.add_argument("--num-classes", type=int, default=5)
     parser.add_argument("--device", default="cpu", choices=["cpu", "cuda", "mps"])
     parser.add_argument("--max-iter", type=int, default=10000)
+    parser.add_argument("--learning-rate", type=float, default=0.001)
     parser.add_argument("--eval-period", type=int, default=500)
     parser.add_argument("--checkpoint-period", type=int, default=0)
     parser.add_argument("--opts", nargs=argparse.REMAINDER)
