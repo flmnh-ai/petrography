@@ -1,5 +1,262 @@
-# petrography
-Automated image analysis of petrographic thin sections.
+# Petrographic Image Analysis with Detectron2 and SAHI
 
-Analysis notebooks:
-1. [Processing image data](https://github.com/flmnh-ai/petrography/blob/main/image_data.md)
+Automated instance segmentation and morphological analysis of petrographic thin sections using state-of-the-art computer vision models.
+
+## Overview
+
+This R package provides a complete workflow for training, evaluating, and analyzing petrographic thin section images using Detectron2 with SAHI (Slicing Aided Hyper Inference) for improved detection of small objects. The workflow combines Python-based machine learning with R-based analysis and visualization through a clean, modern interface.
+
+### Key Features
+
+- **Advanced Instance Segmentation**: Uses Detectron2 Mask R-CNN with SAHI for high-quality detection
+- **Morphological Analysis**: Comprehensive particle characterization (size, shape, orientation, etc.)
+- **Unified Training Interface**: Local and HPC training through R functions with automatic job management
+- **Interactive Analysis**: Modern R workflow using `cli`, `fs`, and `glue` for professional output
+- **Batch Processing**: Efficient processing of large image collections
+- **Model Management**: Automatic model download and caching system
+
+## Installation and Setup
+
+### Prerequisites
+
+- **Python 3.8+** with detectron2, SAHI, and dependencies
+- **R 4.0+** with required packages
+- **CUDA-capable GPU** (recommended for training)
+
+### R Dependencies
+
+```r
+install.packages(c("reticulate", "tidyverse", "magick", "scico", 
+                   "patchwork", "glue", "cli", "fs", "future"))
+```
+
+### Python Dependencies
+
+The package automatically manages Python dependencies. Required packages:
+- detectron2
+- sahi  
+- torch, torchvision
+- opencv-python
+- scikit-image
+- pandas
+
+## Quick Start
+
+### 1. Load the Package Functions
+
+```r
+# Load all package functions
+source("R/model.R")
+source("R/training.R") 
+source("R/prediction.R")
+source("R/data_utils.R")
+source("R/summary.R")
+```
+
+### 2. Data Preparation
+
+Organize your data in COCO format:
+
+```
+data/processed/
+├── shell_mixed/         # 5-class shell detection
+├── inclusions/          # 2-class inclusion detection  
+├── background_removal/  # 2-class background removal
+│   ├── train/
+│   │   ├── _annotations.coco.json
+│   │   └── [training images]
+│   └── val/
+│       ├── _annotations.coco.json
+│       └── [validation images]
+```
+
+### 3. Model Training
+
+#### Local Training
+```r
+model_path <- train_model(
+  data_dir = "data/processed/shell_mixed",
+  output_name = "shell_detector_v3",
+  max_iter = 2000,
+  num_classes = 5,
+  device = "cuda"  # or "cpu", "mps"
+)
+```
+
+#### HPC Training (SLURM)
+```r
+model_path <- train_model(
+  data_dir = "data/processed/inclusions", 
+  output_name = "inclusions_v2",
+  max_iter = 4000,
+  num_classes = 2,
+  hpc_host = "hpg",
+  hpc_user = "your.username",
+  hpc_base_dir = "/blue/your.group/your.username"
+)
+```
+
+### 4. Model Loading and Prediction
+
+```r
+# Load trained model (automatically downloads if needed)
+model <- load_model(confidence = 0.5, device = "cpu")
+
+# Analyze single image
+result <- predict_image(
+  image_path = "data/raw/sample_image.jpg",
+  model = model,
+  use_slicing = TRUE,
+  slice_size = 512,
+  overlap = 0.2
+)
+
+# Batch processing
+batch_result <- predict_batch(
+  input_dir = "data/raw/batch_images/",
+  model = model,
+  output_dir = "results/batch_analysis"
+)
+```
+
+### 5. Analysis and Visualization
+
+Use the analysis notebooks:
+- `petrography_analysis.qmd` - Main analysis workflow
+- `training/training_shell.qmd` - Shell detection training
+- `training/training_inclusions.qmd` - Inclusion detection training  
+- `training/training_background_removal.qmd` - Background removal training
+
+## Core Functions
+
+### Model Management
+- `load_model()` - Load detection model with caching
+- `download_model()` - Download pretrained models
+- `clear_model_cache()` - Clear model cache
+
+### Training
+- `train_model()` - Unified training interface (local or HPC)
+- `evaluate_training()` - Analyze training metrics and logs
+
+### Prediction  
+- `predict_image()` - Analyze single image with morphological analysis
+- `predict_batch()` - Process multiple images efficiently
+
+### Analysis
+- `enhance_results()` - Add derived morphological properties  
+- `summarize_by_image()` - Per-image statistical summaries
+- `get_population_stats()` - Overall population metrics
+
+## Output Files
+
+### Prediction Results
+- **CSV files**: Detailed morphological measurements per object
+- **Visualizations**: Images with detected objects and confidence scores
+- **Summary statistics**: Per-image and population-level metrics
+
+### Morphological Properties
+Each detected object includes:
+- **Basic metrics**: Area, perimeter, centroid coordinates
+- **Shape descriptors**: Eccentricity, orientation, circularity, aspect ratio  
+- **Advanced features**: Solidity, extent, major/minor axis lengths
+- **Derived metrics**: Log area, size categories, shape categories
+
+### Training Evaluation
+- **Training curves**: Loss progression over iterations
+- **Validation metrics**: Model performance on validation set
+- **Learning rate schedule**: LR changes during training
+
+## Configuration
+
+### Training Parameters
+Key parameters for `train_model()`:
+- `max_iter`: Training iterations (2000-4000 typical)
+- `learning_rate`: Base learning rate (0.00025-0.001)
+- `num_classes`: Number of object classes
+- `eval_period`: Validation frequency (100-500 iterations)
+- `device`: "cpu", "cuda", or "mps"
+
+### SAHI Parameters  
+Optimize for your data:
+- `slice_size`: Slice dimensions (512 recommended)
+- `overlap`: Overlap between slices (0.2 typical)
+- `confidence`: Detection threshold (0.3-0.7)
+
+### HPC Configuration
+For SLURM training:
+- `hpc_host`: SSH hostname (e.g., "hpg")  
+- `hpc_user`: Your username
+- `hpc_base_dir`: Remote working directory
+- Automatic file sync and job monitoring
+
+## Performance Optimization
+
+### For Dense Small Objects (200+ per image)
+- Keep `ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512`
+- Use moderate batch sizes (`IMS_PER_BATCH = 4`)
+- Enable mixed precision training (AMP)
+- Consider higher `TEST.DETECTIONS_PER_IMAGE` values
+
+### Training Speed
+- Use `IMS_PER_BATCH = 4` for good speed/accuracy balance
+- Enable AMP for 30-50% speedup on modern GPUs
+- Optimize `NUM_WORKERS` to match available CPU cores
+- Use 4-hour SLURM time limits for safety
+
+## Troubleshooting
+
+### Training Issues
+- **CUDA out of memory**: Reduce `IMS_PER_BATCH` (try 2-4)
+- **Slow training**: Check GPU utilization, enable AMP
+- **Job timeouts**: Training time scales with image resolution and object density
+
+### Detection Issues  
+- **Missing small objects**: Lower confidence threshold, use smaller slice sizes
+- **False positives**: Increase confidence threshold, check training data quality
+- **Poor segmentation**: Verify annotation quality, increase training iterations
+
+### R-Python Integration
+- **Import errors**: Check `py_require()` calls in notebooks
+- **Environment issues**: Restart R session, verify Python environment
+- **Path problems**: Use absolute paths, check file existence
+
+## File Structure
+
+```
+petrography/
+├── R/                          # Package functions
+│   ├── model.R                 # Model loading and management
+│   ├── training.R              # Training orchestration  
+│   ├── hpc_utils.R             # HPC/SLURM utilities
+│   ├── prediction.R            # Prediction and analysis
+│   ├── data_utils.R            # Data processing utilities
+│   └── summary.R               # Summary statistics
+├── src/
+│   └── train.py                # Python training script
+├── training/                   # Training notebooks
+│   ├── training_shell.qmd
+│   ├── training_inclusions.qmd
+│   └── training_background_removal.qmd
+├── petrography_analysis.qmd    # Main analysis workflow
+└── data/processed/             # Training datasets (gitignored)
+```
+
+## Citation
+
+If you use this workflow in your research, please cite:
+
+```bibtex
+@software{petrography_analysis,
+  title={Petrographic Image Analysis with Detectron2 and SAHI},
+  author={Nicolas Gauthier},
+  year={2025},
+  url={https://github.com/your-repo/petrography}
+}
+```
+
+## Acknowledgments
+
+- [Detectron2](https://github.com/facebookresearch/detectron2) for instance segmentation
+- [SAHI](https://github.com/obss/sahi) for sliced inference
+- [reticulate](https://rstudio.github.io/reticulate/) for R-Python integration
+- Modern R utilities: [cli](https://cli.r-lib.org/), [fs](https://fs.r-lib.org/), [glue](https://glue.tidyverse.org/)
