@@ -38,7 +38,6 @@ The package automatically manages Python dependencies. Required packages:
 - torch, torchvision
 - opencv-python
 - scikit-image
-- pandas
 
 ## Quick Start
 

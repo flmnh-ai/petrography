@@ -167,34 +167,34 @@ evaluate_training <- function(model_dir = "Detectron2_Models",
   training_data <- tibble::tibble()
 
   if (fs::file_exists(metrics_file)) {
-    # Read metrics.json using pandas
-    pd <- reticulate::import("pandas")
+    # Read JSONL metrics using jsonlite (no pandas)
+    training_data <- tryCatch({
+      con <- file(metrics_file, open = "r")
+      on.exit(close(con), add = TRUE)
+      df <- jsonlite::stream_in(con, verbose = FALSE)
+      tibble::as_tibble(df) |>
+        clean_names()
+    }, error = function(e) tibble::tibble())
 
-    # Read JSON lines file
-    df <- pd$read_json(metrics_file, lines = TRUE)
+    if (nrow(training_data) > 0) {
+      # Separate training and validation metrics
+      training_metrics <- training_data |>
+        dplyr::select(-dplyr::contains("bbox")) |>
+        dplyr::filter(!is.na(iteration))
 
-    # Convert to R tibble
-    training_data <- reticulate::py_to_r(df) |>
-      tibble::as_tibble() |>
-      clean_names()
+      validation_metrics <- training_data |>
+        dplyr::select(iteration, dplyr::contains("bbox")) |>
+        dplyr::filter(!is.na(iteration), dplyr::if_any(dplyr::contains("bbox"), ~ !is.na(.)))
 
-    # Separate training and validation metrics
-    training_metrics <- training_data |>
-      dplyr::select(-dplyr::contains("bbox")) |>
-      dplyr::filter(!is.na(iteration))
+      # Save to CSV files
+      readr::write_csv(training_metrics, fs::path(output_dir, "training_metrics.csv"))
+      if (nrow(validation_metrics) > 0) {
+        readr::write_csv(validation_metrics, fs::path(output_dir, "validation_metrics.csv"))
+      }
 
-    validation_metrics <- training_data |>
-      dplyr::select(iteration, dplyr::contains("bbox")) |>
-      dplyr::filter(!is.na(iteration), dplyr::if_any(dplyr::contains("bbox"), ~ !is.na(.)))
-
-    # Save to CSV files
-    readr::write_csv(training_metrics, fs::path(output_dir, "training_metrics.csv"))
-    if (nrow(validation_metrics) > 0) {
-      readr::write_csv(validation_metrics, fs::path(output_dir, "validation_metrics.csv"))
+      # Update training_data to include both
+      training_data <- training_metrics
     }
-
-    # Update training_data to include both
-    training_data <- training_metrics
 
   } else if (fs::file_exists(log_file)) {
     # Could add log parsing here if needed

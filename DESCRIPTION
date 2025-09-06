@@ -24,6 +24,7 @@ Imports:
     future,
     glue,
     processx,
+    jsonlite,
     purrr,
     readr,
     reticulate,
@@ -38,4 +39,4 @@ Suggests:
 URL: https://flmnh-ai.github.io/petrographer/
 BugReports: https://github.com/flmnh-ai/petrographer/issues
 SystemRequirements: Python (>= 3.8), PyTorch, Detectron2, SAHI,
-    scikit-image, pandas
+    scikit-image
