@@ -37,12 +37,12 @@ def setup_cfg(args):
     cfg.DATALOADER.NUM_WORKERS = args.num_workers
     cfg.DATALOADER.PIN_MEMORY  = True
 
-    cfg.SOLVER.IMS_PER_BATCH      = 16
+    cfg.SOLVER.IMS_PER_BATCH      = 4
     cfg.SOLVER.BASE_LR            = args.learning_rate
     cfg.SOLVER.MAX_ITER           = args.max_iter
     cfg.SOLVER.STEPS              = (int(args.max_iter * 0.75), int(args.max_iter * 0.9))
     cfg.SOLVER.GAMMA              = 0.1
-    cfg.SOLVER.WARMUP_ITERS       = 1000
+    cfg.SOLVER.WARMUP_ITERS       = 500
     cfg.SOLVER.WARMUP_FACTOR      = 1.0/1000
     checkpoint_period = args.checkpoint_period if args.checkpoint_period > 0 else 999999
     cfg.SOLVER.CHECKPOINT_PERIOD  = checkpoint_period
