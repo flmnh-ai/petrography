@@ -80,12 +80,3 @@ download_model <- function(force = FALSE) {
   return(list(model_path = model_path, config_path = config_path))
 }
 
-clear_model_cache <- function() {
-  cache_dir <- get_model_cache_dir()
-  if (fs::dir_exists(cache_dir)) {
-    fs::dir_delete(cache_dir)
-    cli::cli_alert_success("Cleared model cache at: {.path {cache_dir}}")
-  } else {
-    cli::cli_alert_info("No model cache found at: {.path {cache_dir}}")
-  }
-}

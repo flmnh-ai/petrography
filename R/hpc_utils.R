@@ -43,21 +43,6 @@
   TRUE
 }
 
-# Quick HPC preflight
-preflight_hpc <- function(hpc_host, hpc_user = NULL) {
-  target <- .ssh_target(hpc_host, hpc_user)
-  if (!identical(.run_cmd("rsync", c("--version"), timeout = 10)$status, 0L))
-    cli::cli_abort("Local rsync not available")
-  if (!identical(.run_cmd("ssh", c("-o", "BatchMode=yes", "-o", "ConnectTimeout=10", target, "true"), timeout = 15)$status, 0L))
-    cli::cli_abort("SSH to {target} failed")
-  if (!identical(.run_cmd("ssh", c(target, "rsync --version"), timeout = 15)$status, 0L))
-    cli::cli_abort("Remote rsync not available on {target}")
-  # Use a login shell so site profiles are sourced (ensures SLURM in PATH)
-  slurm_check <- .run_cmd("ssh", c(target, "bash", "-lc", shQuote("command -v squeue >/dev/null && command -v sbatch >/dev/null && command -v sacct >/dev/null")), timeout = 20)
-  if (!identical(slurm_check$status, 0L))
-    cli::cli_abort("SLURM commands not available on {target}")
-  invisible(TRUE)
-}
 
 #' Test SSH connection to HPC
 #' @keywords internal

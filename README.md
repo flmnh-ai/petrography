@@ -184,7 +184,6 @@ Use the analysis notebooks:
 ### Model Management
 - `load_model()` - Load detection model with caching
 - `download_model()` - Download pretrained models
-- `clear_model_cache()` - Clear model cache
 
 ### Training
 - `train_model()` - Unified training interface (local or HPC)
