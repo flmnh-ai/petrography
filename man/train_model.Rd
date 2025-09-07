@@ -9,14 +9,28 @@ train_model(
   output_name,
   num_classes,
   max_iter = 2000,
-  learning_rate = 0.00025,
+  learning_rate = 0.0025,
   device = "cuda",
   eval_period = 100,
   checkpoint_period = 0,
+  ims_per_batch = NA,
+  auto_scale_lr = TRUE,
+  num_workers = NULL,
+  freeze_at = 2,
+  optimizer = c("SGD", "AdamW"),
+  weight_decay = NULL,
+  backbone_multiplier = 0.1,
+  scheduler = c("multistep", "cosine"),
+  warmup_frac = 0.1,
+  warmup_iters = NULL,
+  step_milestones_frac = c(0.75, 0.9),
+  step_milestones = NULL,
+  classwise = FALSE,
+  gpus = 1,
   hpc_host = Sys.getenv("PETROGRAPHER_HPC_HOST", ""),
   hpc_user = NULL,
   hpc_base_dir = Sys.getenv("PETROGRAPHER_HPC_BASE_DIR", ""),
-  local_output_dir = "Detectron2_Models",
+  local_output_dir = here::here("Detectron2_Models"),
   rsync_mode = c("update", "mirror")
 )
 }
@@ -29,13 +43,43 @@ train_model(
 
 \item{max_iter}{Maximum training iterations (default: 2000)}
 
-\item{learning_rate}{Learning rate for training (default: 0.00025)}
+\item{learning_rate}{Base learning rate before auto-scaling (default: 0.00025)}
 
 \item{device}{Device for local training: 'cpu', 'cuda', 'mps' (default: 'cuda')}
 
 \item{eval_period}{Validation evaluation frequency in iterations (default: 100)}
 
 \item{checkpoint_period}{Checkpoint saving frequency (0=final only, >0=every N iterations, default: 0)}
+
+\item{ims_per_batch}{Total images per batch across all devices. If NA (default),
+uses 2 images per GPU (global batch = 2 * gpus).}
+
+\item{auto_scale_lr}{Automatically scale learning rate by number of GPUs
+(effective LR = learning_rate * gpus). Set FALSE to use learning_rate as-is.
+(default: TRUE)}
+
+\item{num_workers}{DataLoader workers per process/GPU. If NULL (default), uses 4 on HPC
+(per GPU) and min(4, max(1, parallel::detectCores(logical = FALSE) - 1)) locally.}
+
+\item{freeze_at}{Backbone freeze level: 0 (none), 2 (default small-data), 3 (freeze more)}
+
+\item{optimizer}{Optimizer to use: 'SGD' or 'AdamW' (default: 'SGD')}
+
+\item{weight_decay}{Weight decay (L2/AdamW). If NULL, default is 1e-4 for SGD and 0.05 for AdamW}
+
+\item{backbone_multiplier}{LR multiplier applied to backbone params when unfrozen (default: 0.1)}
+
+\item{scheduler}{LR scheduler: 'multistep' (default) or 'cosine'}
+
+\item{warmup_frac}{Fraction of max_iter used for warmup (default: 0.1). Ignored if warmup_iters provided}
+
+\item{warmup_iters}{Explicit warmup iters. If NULL, computed from warmup_frac}
+
+\item{step_milestones_frac}{Milestones as fractions of max_iter for multistep (default: c(0.75, 0.9))}
+
+\item{step_milestones}{Explicit milestone iters vector (overrides step_milestones_frac if provided)}
+
+\item{gpus}{Number of GPUs for HPC training (default: 1, ignored for local training)}
 
 \item{hpc_host}{SSH hostname for HPC training (default: PETROGRAPHER_HPC_HOST env var, or "" for local training)}
 

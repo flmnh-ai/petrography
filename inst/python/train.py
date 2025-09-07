@@ -37,16 +37,38 @@ def setup_cfg(args):
     cfg.DATALOADER.NUM_WORKERS = args.num_workers
     cfg.DATALOADER.PIN_MEMORY  = True
 
-    cfg.SOLVER.IMS_PER_BATCH      = 4
+    cfg.SOLVER.IMS_PER_BATCH      = args.ims_per_batch
     cfg.SOLVER.BASE_LR            = args.learning_rate
     cfg.SOLVER.MAX_ITER           = args.max_iter
-    cfg.SOLVER.STEPS              = (int(args.max_iter * 0.75), int(args.max_iter * 0.9))
+    # Learning rate schedule
+    if args.scheduler == "cosine":
+        cfg.SOLVER.LR_SCHEDULER_NAME = "WarmupCosineLR"
+    else:
+        cfg.SOLVER.LR_SCHEDULER_NAME = "WarmupMultiStepLR"
+    if args.steps:
+        cfg.SOLVER.STEPS = args.steps
+    else:
+        cfg.SOLVER.STEPS = (int(args.max_iter * 0.75), int(args.max_iter * 0.9))
     cfg.SOLVER.GAMMA              = 0.1
-    cfg.SOLVER.WARMUP_ITERS       = 500
+    cfg.SOLVER.WARMUP_ITERS       = args.warmup_iters
     cfg.SOLVER.WARMUP_FACTOR      = 1.0/1000
     checkpoint_period = args.checkpoint_period if args.checkpoint_period > 0 else 999999
     cfg.SOLVER.CHECKPOINT_PERIOD  = checkpoint_period
     cfg.SOLVER.AMP.ENABLED = args.device == "cuda"
+
+    # Backbone freeze and multiplier
+    cfg.MODEL.BACKBONE.FREEZE_AT = args.freeze_at
+    try:
+        cfg.SOLVER.BACKBONE_MULTIPLIER = args.backbone_multiplier
+    except Exception:
+        pass
+
+    # Optimizer and weight decay
+    try:
+        cfg.SOLVER.OPTIMIZER = args.optimizer
+    except Exception:
+        pass
+    cfg.SOLVER.WEIGHT_DECAY = args.weight_decay
 
     cfg.INPUT.MIN_SIZE_TRAIN = (640, 672, 704, 736, 768, 800)
     cfg.INPUT.MAX_SIZE_TRAIN = 1333
@@ -58,7 +80,6 @@ def setup_cfg(args):
     cfg.MODEL.ANCHOR_GENERATOR.ASPECT_RATIOS = [[0.5, 1.0, 2.0]]
     cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512
     cfg.MODEL.ROI_HEADS.NUM_CLASSES          = args.num_classes
-    cfg.MODEL.BACKBONE.FREEZE_AT = 2
     cfg.TEST.DETECTIONS_PER_IMAGE = 500
 
     if args.opts:
@@ -100,7 +121,13 @@ def main(args):
         def build_evaluator(cls, cfg, dataset_name, output_folder=None):
             if output_folder is None:
                 output_folder = os.path.join(cfg.OUTPUT_DIR, "inference")
-            return COCOEvaluator(dataset_name, output_dir=output_folder)
+            # Enable classwise AP if supported by this detectron2 version
+            try:
+                return COCOEvaluator(dataset_name, output_dir=output_folder, classwise=args.classwise)
+            except TypeError:
+                if args.classwise:
+                    logging.getLogger(__name__).warning("COCOEvaluator(classwise=...) not supported; skipping classwise per-category metrics.")
+                return COCOEvaluator(dataset_name, output_dir=output_folder)
 
     trainer = CocoTrainer(cfg)
     trainer.resume_or_load(resume=False)
@@ -115,13 +142,31 @@ if __name__ == "__main__":
     parser.add_argument("--val-image-root", default="data/shell_mixed/val")
     parser.add_argument("--output-dir", default="Detectron2_Models")
     parser.add_argument("--num-workers", type=int, default=4)
+    parser.add_argument("--ims-per-batch", type=int, default=4)
+    parser.add_argument("--freeze-at", type=int, default=2)
+    parser.add_argument("--optimizer", type=str, default="SGD", choices=["SGD", "AdamW"])
+    parser.add_argument("--weight-decay", type=float, default=1e-4)
+    parser.add_argument("--backbone-multiplier", type=float, default=0.1)
+    parser.add_argument("--scheduler", type=str, default="multistep", choices=["multistep", "cosine"])
+    parser.add_argument("--warmup-iters", type=int, default=500)
+    parser.add_argument("--steps", type=str, default="")
+    parser.add_argument("--classwise", action="store_true")
     parser.add_argument("--num-classes", type=int, default=5)
     parser.add_argument("--device", default="cpu", choices=["cpu", "cuda", "mps"])
     parser.add_argument("--max-iter", type=int, default=10000)
-    parser.add_argument("--learning-rate", type=float, default=0.001)
+    parser.add_argument("--learning-rate", type=float, default=0.0025)
     parser.add_argument("--eval-period", type=int, default=500)
     parser.add_argument("--checkpoint-period", type=int, default=0)
     parser.add_argument("--opts", nargs=argparse.REMAINDER)
     args = parser.parse_args()
+
+    # Parse steps as CSV if provided
+    if args.steps:
+        try:
+            args.steps = tuple(int(x.strip()) for x in args.steps.split(',') if x.strip())
+        except Exception:
+            args.steps = tuple()
+    else:
+        args.steps = tuple()
 
     launch(main, args.num_gpus, num_machines=1, machine_rank=0, dist_url="auto", args=(args,))

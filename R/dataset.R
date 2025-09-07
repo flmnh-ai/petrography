@@ -30,18 +30,18 @@ validate_dataset <- function(data_dir) {
     "Data directory" = data_dir,
     "Train images" = train_images,
     "Val images" = val_images,
-    "Train annotations" = if (isTRUE(train_anno)) "✓" else "✗",
-    "Val annotations" = if (isTRUE(val_anno)) "✓" else "✗",
+    "Train annotations" = if (isTRUE(train_anno)) cli::symbol$tick else cli::symbol$cross,
+    "Val annotations" = if (isTRUE(val_anno)) cli::symbol$tick else cli::symbol$cross,
     "Total size" = glue::glue("{round(total_mb, 1)} MB")
   ))
-  
+
   if (!valid) {
     cli::cli_alert_danger("Dataset invalid")
     cli::cli_abort("Dataset validation failed")
   }
-  
+
   cli::cli_alert_success("Dataset valid")
-  
+
   # Return simple list
   invisible(list(
     data_dir = data_dir,
@@ -70,7 +70,7 @@ summarize_dataset <- function(data_dir) {
       fs::file_exists(fs::path(data_dir, d, "_annotations.coco.json"))
     }, logical(1))
   )
-  
+
   # Print summary
   tot <- sum(out$images, na.rm = TRUE)
   cli::cli_h2("Dataset Summary")
@@ -78,7 +78,7 @@ summarize_dataset <- function(data_dir) {
     "Total images" = tot,
     "Splits" = paste(out$split, collapse = ", ")
   ))
-  
+
   # Show the tibble
   print(out)
   invisible(out)

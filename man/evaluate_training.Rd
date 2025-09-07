@@ -2,7 +2,13 @@
 % Please edit documentation in R/prediction.R
 \name{evaluate_training}
 \alias{evaluate_training}
-\title{Evaluate model training}
+\title{Evaluate model training
+Reads Detectron2 metrics.json and exports:
+\itemize{
+\item training_metrics.csv: losses, lr, etc.
+\item validation_metrics.csv: aggregate COCO bbox and segm AP metrics
+\item validation_classwise.csv: per-class AP metrics (when logged by evaluator)
+}}
 \usage{
 evaluate_training(
   model_dir = "Detectron2_Models",
@@ -15,8 +21,14 @@ evaluate_training(
 \item{output_dir}{Output directory for results (default: 'results/evaluation')}
 }
 \value{
-List with training data tibble and summary statistics
+List with parsed tibbles and summary statistics
 }
 \description{
 Evaluate model training
+Reads Detectron2 metrics.json and exports:
+\itemize{
+\item training_metrics.csv: losses, lr, etc.
+\item validation_metrics.csv: aggregate COCO bbox and segm AP metrics
+\item validation_classwise.csv: per-class AP metrics (when logged by evaluator)
+}
 }

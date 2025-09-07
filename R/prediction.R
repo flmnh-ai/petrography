@@ -150,9 +150,13 @@ predict_batch <- function(input_dir, model, use_slicing = TRUE,
 }
 
 #' Evaluate model training
+#' Reads Detectron2 metrics.json and exports:
+#' - training_metrics.csv: losses, lr, etc.
+#' - validation_metrics.csv: aggregate COCO bbox and segm AP metrics
+#' - validation_classwise.csv: per-class AP metrics (when logged by evaluator)
 #' @param model_dir Directory containing trained model (default: 'Detectron2_Models')
 #' @param output_dir Output directory for results (default: 'results/evaluation')
-#' @return List with training data tibble and summary statistics
+#' @return List with parsed tibbles and summary statistics
 #' @export
 evaluate_training <- function(model_dir = "Detectron2_Models",
                              output_dir = "results/evaluation") {
@@ -180,19 +184,39 @@ evaluate_training <- function(model_dir = "Detectron2_Models",
     }, error = function(e) tibble::tibble())
 
     if (nrow(training_data) > 0) {
-      # Separate training and validation metrics
-      training_metrics <- training_data |>
-        dplyr::select(-dplyr::contains("bbox")) |>
-        dplyr::filter(!is.na(iteration))
+      # Identify validation rows (have bbox or segm metrics)
+      validation_rows <- training_data |>
+        dplyr::filter(
+          dplyr::if_any(dplyr::contains("bbox"), ~ !is.na(.)) |
+          dplyr::if_any(dplyr::contains("segm"), ~ !is.na(.))
+        )
 
-      validation_metrics <- training_data |>
-        dplyr::select(iteration, dplyr::contains("bbox")) |>
-        dplyr::filter(!is.na(iteration), dplyr::if_any(dplyr::contains("bbox"), ~ !is.na(.)))
+      # Training metrics: rows without validation aggregate columns
+      training_metrics <- training_data |>
+        dplyr::filter(!dplyr::row_number() %in% dplyr::row_number(validation_rows))
+
+      # Combined validation metrics (bbox + segm)
+      validation_metrics <- validation_rows |>
+        dplyr::select(
+          iteration,
+          dplyr::contains("bbox"),
+          dplyr::contains("segm")
+        )
 
       # Save to CSV files
       readr::write_csv(training_metrics, fs::path(output_dir, "training_metrics.csv"))
       if (nrow(validation_metrics) > 0) {
         readr::write_csv(validation_metrics, fs::path(output_dir, "validation_metrics.csv"))
+      }
+
+      # Per-class metrics, if present (columns like ap_<class>)
+      classwise_cols <- grep("^ap_", names(training_data), value = TRUE)
+      if (length(classwise_cols) > 0) {
+        validation_classwise <- validation_rows |>
+          dplyr::select(iteration, dplyr::all_of(classwise_cols))
+        if (nrow(validation_classwise) > 0) {
+          readr::write_csv(validation_classwise, fs::path(output_dir, "validation_classwise.csv"))
+        }
       }
 
       # Update training_data to include both
@@ -209,6 +233,8 @@ evaluate_training <- function(model_dir = "Detectron2_Models",
     total_iterations = if (nrow(training_data) > 0) max(training_data$iteration, na.rm = TRUE) else 0,
     metrics_available = nrow(training_data) > 0,
     validation_metrics_available = exists("validation_metrics") && nrow(validation_metrics) > 0,
+    validation_segm_available = exists("validation_metrics") && any(grepl("segm", names(validation_metrics))),
+    classwise_available = exists("validation_classwise") && nrow(validation_classwise) > 0,
     validation_evaluations = if (exists("validation_metrics")) nrow(validation_metrics) else 0
   )
 
@@ -222,11 +248,16 @@ evaluate_training <- function(model_dir = "Detectron2_Models",
   if (exists("validation_metrics") && nrow(validation_metrics) > 0) {
     result$validation_data <- validation_metrics
   }
+  if (exists("validation_classwise") && nrow(validation_classwise) > 0) {
+    result$validation_classwise <- validation_classwise
+  }
   
   # Print summary
   cli::cli_dl(c(
     "Training iterations" = summary$total_iterations,
     "Validation evaluations" = summary$validation_evaluations,
+    "Segm metrics available" = if (isTRUE(summary$validation_segm_available)) "yes" else "no",
+    "Classwise metrics available" = if (isTRUE(summary$classwise_available)) "yes" else "no",
     "Training records" = nrow(training_data),
     "Output directory" = output_dir
   ))
