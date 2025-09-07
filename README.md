@@ -12,7 +12,7 @@ Quick start (local)
 library(petrographer)
 
 # Validate dataset
-validate_coco_dataset("data/processed/shell_mixed")
+validate_dataset("data/processed/shell_mixed")
 
 # Train locally
 model_dir <- train_model(
@@ -31,11 +31,11 @@ Quick start (HPC)
 
 ```r
 # Add to your .Renviron file (edit with usethis::edit_r_environ())
-usethis::edit_r_environ()
+usethis::edit_r_environ("project")
 
 # Add these lines:
-PETROGRAPHER_HPC_HOST=hpg.rc.ufl.edu
-PETROGRAPHER_HPC_BASE_DIR=/blue/your_lab/your_user
+PETROGRAPHER_HPC_HOST="hpg"
+PETROGRAPHER_HPC_BASE_DIR="/blue/your_lab/your_user"
 ```
 
 Then restart R and train:

@@ -1,0 +1,116 @@
+---
+title: "Inclusions Detection Model Training"
+format: html
+---
+
+Training **inclusions detection** model for petrographic analysis with extended training (4000 iterations).
+
+## Setup
+
+```{r setup, message=FALSE}
+library(tidyverse)
+library(fs)
+library(here)
+library(petrographer)
+
+data_dir <- here("data/processed/inclusion_shell")
+
+# Validate dataset
+validate_dataset(data_dir)
+```
+
+## Training
+
+```{r training}
+# Train model (HPC settings from .Renviron)
+model_path <- train_model(
+  data_dir = data_dir,
+  output_name = "shell_inclusions_v1",
+  num_classes = 3,
+  max_iter = 3000  # extended training for inclusions
+)
+```
+
+## Evaluation
+
+```{r evaluation}
+# Load training metrics
+eval_result <- evaluate_training(model_path)
+```
+
+## Visualization
+
+```{r plots}
+# Loss
+eval_result$training_data |>
+  select(iteration, contains("loss")) |>
+  pivot_longer(-iteration, names_to = "loss_type", values_to = "loss") |>
+  filter(!is.na(loss)) |>
+  ggplot(aes(iteration, loss)) +
+  geom_line() +
+  facet_wrap(~loss_type, scales = "free_y") +
+  labs(title = "Training Loss - inclusions_v2") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+# Validation metrics  
+eval_result$validation_data |>
+    pivot_longer(-iteration, names_to = "metric", values_to = "value") |>
+    filter(!is.na(value)) |>
+    ggplot(aes(iteration, value)) +
+    geom_line() +
+    geom_point(size = 0.5) +
+    facet_wrap(~metric, scales = "free_y") +
+    labs(title = "Validation Metrics - inclusions_v2") +
+    theme_minimal()
+```
+
+## Model Testing
+
+```{r testing}
+cat("\n== Testing Model ==\n")
+
+# Load trained model
+model <- load_model(
+  model_path = path(model_path, "model_final.pth"),
+  config_path = path(model_path, "config.yaml")
+)
+
+# Test on validation sample
+val_images <- dir_ls(here(data_dir, "val"), glob = '*.jpg')
+
+test_image <- val_images[1]
+
+test_result <- predict_image(
+  image_path = test_image,
+  model = model,
+  output_dir = here('results/inclusions_shell')
+)
+
+cat(sprintf("Test image: %s\n", path_file(test_image)))
+cat(sprintf("Objects detected: %d\n", nrow(test_result)))
+cat(sprintf("Mean confidence: %.3f\n", mean(test_result$confidence)))
+```
+
+```{r}
+library(magick)
+pred_image <- test_image |>
+  path_file() |>
+  path_ext_remove() |>
+  paste0('_prediction.png')
+
+image_read(test_image) |> plot()
+here('results/inclusions_shell', pred_image) |>
+  image_read() |>
+  plot()
+```
+
+## Summary
+
+```{r summary}
+cat("\n== Training Summary ==\n")
+
+if (exists("test_result") && nrow(test_result) > 0) {
+  cat(sprintf("Model successfully tested with %d detections\n", nrow(test_result)))
+}
+```

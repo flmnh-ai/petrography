@@ -6,49 +6,46 @@
 \usage{
 train_model(
   data_dir,
-  output_name = "petrography_model",
-  max_iter = 5000,
-  learning_rate = 0.001,
-  num_classes = 5,
-  device = "cpu",
-  eval_period = 500,
+  output_name,
+  num_classes,
+  max_iter = 2000,
+  learning_rate = 0.00025,
+  device = "cuda",
+  eval_period = 100,
   checkpoint_period = 0,
-  hpc_host = NULL,
+  hpc_host = Sys.getenv("PETROGRAPHER_HPC_HOST", ""),
   hpc_user = NULL,
-  hpc_base_dir = NULL,
+  hpc_base_dir = Sys.getenv("PETROGRAPHER_HPC_BASE_DIR", ""),
   local_output_dir = "Detectron2_Models",
-  rsync_mode = c("update", "mirror"),
-  dry_run = FALSE
+  rsync_mode = c("update", "mirror")
 )
 }
 \arguments{
 \item{data_dir}{Local directory containing train and val subdirectories with COCO annotations}
 
-\item{output_name}{Name for the trained model (default: "petrography_model")}
+\item{output_name}{Name for the trained model (required)}
 
-\item{max_iter}{Maximum training iterations (default: 5000)}
+\item{num_classes}{Number of object classes (required)}
 
-\item{learning_rate}{Learning rate for training (default: 0.001)}
+\item{max_iter}{Maximum training iterations (default: 2000)}
 
-\item{num_classes}{Number of object classes (default: 5)}
+\item{learning_rate}{Learning rate for training (default: 0.00025)}
 
-\item{device}{Device for local training: 'cpu', 'cuda', 'mps' (default: 'cpu')}
+\item{device}{Device for local training: 'cpu', 'cuda', 'mps' (default: 'cuda')}
 
-\item{eval_period}{Validation evaluation frequency in iterations (default: 500)}
+\item{eval_period}{Validation evaluation frequency in iterations (default: 100)}
 
 \item{checkpoint_period}{Checkpoint saving frequency (0=final only, >0=every N iterations, default: 0)}
 
-\item{hpc_host}{SSH hostname for HPC training (NULL for local training)}
+\item{hpc_host}{SSH hostname for HPC training (default: PETROGRAPHER_HPC_HOST env var, or "" for local training)}
 
-\item{hpc_user}{Username for HPC (default: current user)}
+\item{hpc_user}{Username for HPC (default: NULL)}
 
-\item{hpc_base_dir}{Remote base directory on HPC (default: "~/petrography_training")}
+\item{hpc_base_dir}{Remote base directory on HPC (default: PETROGRAPHER_HPC_BASE_DIR env var)}
 
 \item{local_output_dir}{Local directory to save trained model (default: "Detectron2_Models")}
 
 \item{rsync_mode}{Data sync mode: 'update' (default) or 'mirror' (adds --delete)}
-
-\item{dry_run}{If TRUE, rsync runs with -n to preview changes}
 }
 \value{
 Path to trained model directory

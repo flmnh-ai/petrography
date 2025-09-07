@@ -5,38 +5,38 @@
 
 #' Authenticate with HPC using SSH multiplexing (handles Duo MFA)
 #' @param hpc_host Hostname (e.g., 'hpg')
-#' @param hpc_user Optional username  
+#' @param hpc_user Optional username
 #' @return SSH target string for subsequent connections
 #' @export
 hpc_authenticate <- function(hpc_host = "hpg", hpc_user = NULL) {
   target <- if (!is.null(hpc_user) && nzchar(hpc_user)) paste0(hpc_user, "@", hpc_host) else hpc_host
-  
+
   cli::cli_h2("HPC Authentication with SSH Multiplexing")
   cli::cli_alert_info("Connecting to: {.strong {target}}")
-  
+
   # Check if master connection already exists
   check_result <- processx::run("ssh", c("-O", "check", target), timeout = 5, error_on_status = FALSE)
   if (check_result$status == 0) {
     cli::cli_alert_success("SSH master connection already active for {.strong {target}}")
     return(invisible(target))
   }
-  
+
   # Start master connection (handles Duo interactively)
   cli::cli_alert_info("Starting SSH master connection (Duo authentication required)...")
   cli::cli_alert_warning("Please respond to any authentication prompts below:")
-  
+
   # Start master: -M=master, -N=no command, -f=background
   processx::run("ssh", c("-MNf", target), timeout = 60, error_on_status = TRUE)
-  
+
   # Wait a moment for connection to establish
   Sys.sleep(2)
-  
+
   # Verify master connection works
   processx::run("ssh", c(target, "echo 'Master connection ready'"), timeout = 10, error_on_status = TRUE)
-  
+
   cli::cli_alert_success("SSH master connection established for {.strong {target}}")
   cli::cli_alert_info("All subsequent SSH and rsync operations will use this connection without re-authentication")
-  
+
   invisible(target)
 }
 
@@ -45,7 +45,7 @@ hpc_authenticate <- function(hpc_host = "hpg", hpc_user = NULL) {
 hpc_sync_and_submit <- function(target, data_dir, hpc_base_dir, output_name, training_params) {
   timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
   remote_base <- fs::path(hpc_base_dir, output_name, timestamp)
-  
+
   # Create remote directories
   remote_dirs <- c(
     remote_base,
@@ -53,11 +53,11 @@ hpc_sync_and_submit <- function(target, data_dir, hpc_base_dir, output_name, tra
     fs::path(remote_base, "src"),
     fs::path(remote_base, "output")
   )
-  
+
   cli::cli_progress_step("Creating remote directories")
   mkdir_cmd <- paste("mkdir -p", paste(shQuote(remote_dirs), collapse = " "))
   processx::run("ssh", c(target, mkdir_cmd), timeout = 30, error_on_status = TRUE)
-  
+
   # Fast rsync for data
   cli::cli_progress_step("Syncing data to HPC")
   processx::run("rsync", c(
@@ -65,8 +65,8 @@ hpc_sync_and_submit <- function(target, data_dir, hpc_base_dir, output_name, tra
     paste0(data_dir, "/"),
     paste0(target, ":", remote_base, "/data/")
   ), timeout = Inf, spinner = TRUE, error_on_status = TRUE)
-  
-  # Fast rsync for code  
+
+  # Fast rsync for code
   cli::cli_progress_step("Syncing training code to HPC")
   src_dir <- system.file("python", package = "petrographer")
   processx::run("rsync", c(
@@ -78,8 +78,9 @@ hpc_sync_and_submit <- function(target, data_dir, hpc_base_dir, output_name, tra
   # Generate SLURM script inline
   slurm_script <- paste0("#!/bin/bash\n",
     "#SBATCH --job-name=petrographer_train\n",
-    "#SBATCH --time=04:00:00\n",
+    "#SBATCH --time=01:00:00\n",
     "#SBATCH --cpus-per-task=4\n",
+    "#SBATCH --partition=hpg-b200\n",
     "#SBATCH --mem=24gb\n",
     "#SBATCH --gpus=1\n",
     "#SBATCH --output=%x_%j.out\n",
@@ -92,11 +93,11 @@ hpc_sync_and_submit <- function(target, data_dir, hpc_base_dir, output_name, tra
   cli::cli_progress_step("Submitting SLURM job")
   submit_cmd <- paste0("sbatch <<'EOF'\n", slurm_script, "\nEOF")
   submit_result <- processx::run("ssh", c(target, submit_cmd), timeout = 30, error_on_status = TRUE)
-  
+
   if (!grepl("Submitted batch job", submit_result$stdout)) {
     cli::cli_abort("Unexpected SLURM response: {submit_result$stdout}")
   }
-  
+
   job_id <- gsub("Submitted batch job ([0-9]+).*", "\\1", submit_result$stdout)
   cli::cli_alert_success("Job submitted with ID: {.strong {job_id}}")
 
@@ -109,7 +110,7 @@ hpc_sync_and_submit <- function(target, data_dir, hpc_base_dir, output_name, tra
 #' @keywords internal
 hpc_monitor <- function(target, job_id, remote_base) {
   start_time <- Sys.time()
-  
+
   # Helper function to get job status
   get_job_status <- function() {
     result <- processx::run("ssh", c(target, paste("squeue -j", job_id, "-h -o %T")), timeout = 30, error_on_status = FALSE)
@@ -118,13 +119,13 @@ hpc_monitor <- function(target, job_id, remote_base) {
     }
     trimws(result$stdout)
   }
-  
+
   # Check initial status
   current_status <- get_job_status()
   if (current_status %in% c("FAILED", "CANCELLED", "TIMEOUT")) {
     cli::cli_abort("Job {.strong {job_id}} failed with status: {.emph {current_status}}")
   }
-  
+
   # Monitor PENDING state with spinner
   if (current_status == "PENDING") {
     cli::cli_progress_step("Job {.strong {job_id}} waiting in queue", spinner = TRUE)
@@ -134,7 +135,7 @@ hpc_monitor <- function(target, job_id, remote_base) {
         Sys.sleep(1)
       }
       current_status <- get_job_status()
-      
+
       if (current_status != "PENDING") break
       if (current_status %in% c("FAILED", "CANCELLED", "TIMEOUT")) {
         cli::cli_abort("Job {.strong {job_id}} failed with status: {.emph {current_status}}")
@@ -144,7 +145,7 @@ hpc_monitor <- function(target, job_id, remote_base) {
       }
     }
   }
-  
+
   # Monitor RUNNING state with spinner
   if (current_status == "RUNNING") {
     cli::cli_progress_step("Job {.strong {job_id}} training model", spinner = TRUE)
@@ -154,7 +155,7 @@ hpc_monitor <- function(target, job_id, remote_base) {
         Sys.sleep(1)
       }
       current_status <- get_job_status()
-      
+
       if (current_status == "FINISHED") break
       if (current_status %in% c("FAILED", "CANCELLED", "TIMEOUT")) {
         cli::cli_abort("Job {.strong {job_id}} failed with status: {.emph {current_status}}")
@@ -164,15 +165,15 @@ hpc_monitor <- function(target, job_id, remote_base) {
       }
     }
   }
-  
+
   # Check final completion status
   if (current_status == "FINISHED") {
     final <- processx::run("ssh", c(target, paste("sacct -j", job_id, "-n -o State | tail -n 1")), timeout = 30, error_on_status = FALSE)
     status <- trimws(final$stdout)
     if (status != "COMPLETED") {
       # Show error output
-      err_result <- processx::run("ssh", c(target, 
-        paste0("cat ", fs::path(remote_base, paste0("petrographer_train_", job_id, ".err")))), 
+      err_result <- processx::run("ssh", c(target,
+        paste0("cat ", fs::path(remote_base, paste0("petrographer_train_", job_id, ".err")))),
         timeout = 30, error_on_status = FALSE)
       if (nchar(err_result$stdout) > 0) {
         cli::cli_h3("Error output")
@@ -181,7 +182,7 @@ hpc_monitor <- function(target, job_id, remote_base) {
       cli::cli_abort("Job {.strong {job_id}} failed with status: {.emph {status}}")
     }
   }
-  
+
   cli::cli_alert_success("Training completed successfully on HPC!")
   return(TRUE)
 }

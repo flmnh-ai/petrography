@@ -4,9 +4,9 @@
 
 #' Validate a COCO-style dataset directory
 #' @param data_dir Directory containing 'train' and 'val' subdirectories
-#' @return A list with validation flags and counts
+#' @return A list with validation flags, counts, and size metrics
 #' @export
-validate_coco_dataset <- function(data_dir) {
+validate_dataset <- function(data_dir) {
   data_dir <- fs::path_abs(fs::path_norm(data_dir))
   train_dir <- fs::path(data_dir, "train")
   val_dir <- fs::path(data_dir, "val")
@@ -17,6 +17,11 @@ validate_coco_dataset <- function(data_dir) {
   train_images <- if (train_ok) length(fs::dir_ls(train_dir, regexp = "(?i)\\.(jpg|jpeg|png)$")) else 0
   val_images <- if (val_ok) length(fs::dir_ls(val_dir, regexp = "(?i)\\.(jpg|jpeg|png)$")) else 0
 
+  # Compute size
+  files <- fs::dir_ls(data_dir, recurse = TRUE, type = "file")
+  total_bytes <- sum(fs::file_size(files), na.rm = TRUE)
+  total_mb <- as.numeric(total_bytes) / (1024^2)
+
   res <- list(
     data_dir = data_dir,
     train_dir_exists = train_ok,
@@ -25,9 +30,12 @@ validate_coco_dataset <- function(data_dir) {
     val_annotations = val_anno,
     train_images = train_images,
     val_images = val_images,
+    size_bytes = as.numeric(total_bytes),
+    size_mb = round(total_mb, 1),
     valid = train_ok && val_ok && train_anno && val_anno && (train_images + val_images) > 0
   )
-  class(res) <- c("CocoValidation", class(res))
+  
+  class(res) <- c("DatasetValidation", class(res))
   if (!res$valid) {
     # Print a concise summary then abort
     print(res)
@@ -36,26 +44,10 @@ validate_coco_dataset <- function(data_dir) {
   res
 }
 
-#' Validate dataset and compute total size
-#' @param data_dir Directory containing the dataset (expects 'train' and 'val')
-#' @return A list with validation flags, counts, and size metrics
 #' @export
-validate_dataset <- function(data_dir) {
-  # Reuse coco validation (aborts if invalid)
-  val <- validate_coco_dataset(data_dir)
-
-  # Compute total size (bytes and MB)
-  files <- fs::dir_ls(val$data_dir, recurse = TRUE, type = "file")
-  total_bytes <- sum(fs::file_size(files), na.rm = TRUE)
-  total_mb <- as.numeric(total_bytes) / (1024^2)
-
-  out <- val
-  out$size_bytes <- as.numeric(total_bytes)
-  out$size_mb <- round(total_mb, 1)
-  class(out) <- c("DatasetValidation", class(out))
-  
-  # Return object (S3 print method will handle display)
-  out
+validate_coco_dataset <- function(data_dir) {
+  .Deprecated("validate_dataset", package = "petrographer")
+  validate_dataset(data_dir)
 }
 
 #' Summarize a dataset directory
