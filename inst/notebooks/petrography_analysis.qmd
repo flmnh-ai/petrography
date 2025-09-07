@@ -4,7 +4,7 @@ format: html
 params:
   single_image: "data/raw/Lyons_data/c/139-45_xp_000019.jpg"
   batch_input_dir: "data/raw/Lyons_data/c"
-  output_dir: "results"
+  output_dir: !r here::here("results")
   use_slicing: TRUE
   slice_size: 512
   overlap_ratio: 0.2
@@ -30,6 +30,7 @@ library(scico)
 library(patchwork)
 library(glue)
 library(fs)
+library(here)
 library(petrographer)
 
 # Configuration

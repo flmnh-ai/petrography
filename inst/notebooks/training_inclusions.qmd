@@ -5,7 +5,7 @@ params:
   data_dir: "../../data/processed/inclusions"
   output_name: "inclusions_v2"
   num_classes: 2
-  max_iter: 4000
+  max_iter: 500
   learning_rate: 0.00025
   device: "cuda"
   eval_period: 100
@@ -20,6 +20,7 @@ Training **inclusions detection** model for petrographic analysis with extended 
 ```{r setup, message=FALSE}
 library(tidyverse)
 library(fs)
+library(here)
 library(petrographer)
 
 # Configuration
@@ -123,7 +124,7 @@ test_image <- val_images[1]
 test_result <- predict_image(
   image_path = test_image,
   model = model,
-  output_dir = path("results", glue::glue("{config$output_name}_test"))
+  output_dir = here::here("results", paste0(config$output_name, "_test"))
 )
 
 cat(sprintf("Test image: %s\n", path_file(test_image)))
@@ -133,7 +134,7 @@ cat(sprintf("Mean confidence: %.3f\n", mean(test_result$confidence)))
 
 ```{r}
 library(magick)
-list.files(path("results", glue::glue("{config$output_name}_test")), full.names = TRUE)[[1]] |>
+list.files(here::here("results", paste0(config$output_name, "_test")), full.names = TRUE)[[1]] |>
 image_read() |>
   plot()
 ```

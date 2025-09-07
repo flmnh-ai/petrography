@@ -15,9 +15,7 @@ train_model_hpc(
   hpc_host,
   hpc_user,
   hpc_base_dir,
-  local_output_dir,
-  rsync_mode,
-  dry_run
+  local_output_dir
 )
 }
 \description{
