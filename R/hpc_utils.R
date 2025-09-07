@@ -22,6 +22,16 @@
   last
 }
 
+# Parse and print a concise rsync summary from --stats output
+.rsync_summary <- function(stdout, label = NULL) {
+  if (!nzchar(stdout)) return(invisible())
+  lines <- strsplit(stdout, "\n", fixed = TRUE)[[1]]
+  sent_line <- lines[grepl("^sent \\d+", lines)]
+  files_line <- lines[grepl("^Number of regular files transferred:", lines)]
+  if (length(sent_line)) cli::cli_alert_info(paste0(if (!is.null(label)) paste0(label, ": ") else "", trimws(sent_line[1])))
+  if (length(files_line)) cli::cli_alert_info(trimws(files_line[1]))
+}
+
 .ssh_target <- function(hpc_host, hpc_user = NULL) {
   if (!is.null(hpc_user) && nzchar(hpc_user)) paste0(hpc_user, "@", hpc_host) else hpc_host
 }
@@ -90,7 +100,8 @@ setup_remote_directories <- function(hpc_host, hpc_user = NULL, hpc_base_dir, ou
   }
 
   mkdir_cmd <- glue::glue("mkdir -p {paste(shQuote(remote_dirs), collapse = ' ')}")
-  res <- .run_cmd("ssh", c(target, shQuote(mkdir_cmd)), timeout = 30)
+  # Important: do NOT shQuote the whole remote command when calling ssh via processx
+  res <- .run_cmd("ssh", c(target, mkdir_cmd), timeout = 30)
   if (!identical(res$status, 0L)) cli::cli_abort("Failed to create remote directories on HPC: {res$stderr}")
 
   remote_session_dir
@@ -104,9 +115,12 @@ sync_data_to_hpc <- function(local_data_dir, hpc_host, hpc_user = NULL, remote_s
   target <- .ssh_target(hpc_host, hpc_user)
   remote_data_dir <- fs::path(remote_session_dir, "data")
   rsync_mode <- match.arg(rsync_mode)
-  args <- c("-avz", if (dry_run) "-n" else NULL, if (rsync_mode == "mirror") "--delete" else NULL, paste0(local_data_dir, "/"), paste0(target, ":", remote_data_dir))
-  res <- .run_cmd("rsync", args, timeout = 0, retries = if (dry_run) 0 else 2, echo = TRUE)
-  if (!identical(res$status, 0L)) cli::cli_abort("Failed to sync data to HPC: {res$stderr}")
+  step_id <- cli::cli_progress_step("Syncing data to HPC...", msg_done = "Data synced", msg_failed = "Data sync failed")
+  args <- c("-az", "--stats", if (dry_run) "-n" else NULL, if (rsync_mode == "mirror") "--delete" else NULL, paste0(local_data_dir, "/"), paste0(target, ":", remote_data_dir))
+  res <- .run_cmd("rsync", args, timeout = Inf, retries = if (dry_run) 0 else 2, echo = FALSE)
+  if (!identical(res$status, 0L)) { cli::cli_progress_done(step_id, result = "failed"); cli::cli_abort("Failed to sync data to HPC: {res$stderr}") }
+  cli::cli_progress_done(step_id, result = "done")
+  .rsync_summary(res$stdout, "Data sync")
 }
 
 
@@ -117,9 +131,12 @@ sync_code_to_hpc <- function(hpc_host, hpc_user = NULL, remote_session_dir, dry_
   target <- .ssh_target(hpc_host, hpc_user)
   src_dir <- system.file("python", package = "petrographer")
   if (!fs::dir_exists(src_dir)) cli::cli_abort("Packaged python directory not found")
-  args <- c("-avz", if (dry_run) "-n" else NULL, "--exclude", "__pycache__/", paste0(src_dir, "/"), paste0(target, ":", fs::path(remote_session_dir, "src/")))
-  res <- .run_cmd("rsync", args, timeout = 0, retries = if (dry_run) 0 else 2, echo = TRUE)
-  if (!identical(res$status, 0L)) cli::cli_abort("Failed to sync training code to HPC: {res$stderr}")
+  step_id <- cli::cli_progress_step("Syncing training code to HPC...", msg_done = "Code synced", msg_failed = "Code sync failed")
+  args <- c("-az", "--stats", if (dry_run) "-n" else NULL, "--exclude", "__pycache__/", paste0(src_dir, "/"), paste0(target, ":", fs::path(remote_session_dir, "src/")))
+  res <- .run_cmd("rsync", args, timeout = Inf, retries = if (dry_run) 0 else 2, echo = FALSE)
+  if (!identical(res$status, 0L)) { cli::cli_progress_done(step_id, result = "failed"); cli::cli_abort("Failed to sync training code to HPC: {res$stderr}") }
+  cli::cli_progress_done(step_id, result = "done")
+  .rsync_summary(res$stdout, "Code sync")
 }
 
 
@@ -150,7 +167,7 @@ submit_slurm_job <- function(hpc_host, hpc_user = NULL, remote_session_dir, outp
 
   # submit
   submit_cmd <- glue::glue("cd {shQuote(remote_session_dir)} && sbatch train_job.sh")
-  res <- .run_cmd("ssh", c(target, shQuote(submit_cmd)))
+  res <- .run_cmd("ssh", c(target, submit_cmd))
   if (is.null(res$stdout) || !grepl("Submitted batch job", res$stdout)) {
     cli::cli_abort("Failed to submit SLURM job: {paste(c(res$stdout, res$stderr), collapse = '\\n')}")
   }
@@ -222,10 +239,10 @@ monitor_slurm_job <- function(hpc_host, hpc_user = NULL, job_id, poll_interval =
     }
 
     status_cmd <- glue::glue("squeue -j {job_id} -h -o %T")
-    status_res <- .run_cmd("ssh", c(target, shQuote(status_cmd)))
+    status_res <- .run_cmd("ssh", c(target, status_cmd))
 
     out_cmd <- glue::glue("if [ -f {out_file} ]; then wc -l < {out_file} && tail -n 10 {out_file}; fi")
-    out_res <- .run_cmd("ssh", c(target, shQuote(out_cmd)))
+    out_res <- .run_cmd("ssh", c(target, out_cmd))
     if (nzchar(out_res$stdout)) {
       lines <- strsplit(out_res$stdout, "\n")[[1]]
       n <- suppressWarnings(as.numeric(lines[1]))
@@ -243,13 +260,13 @@ monitor_slurm_job <- function(hpc_host, hpc_user = NULL, job_id, poll_interval =
 
     if (!nzchar(status_res$stdout)) {
       final_cmd <- glue::glue("sacct -j {job_id} -n -o State | tail -n 1")
-      final_res <- .run_cmd("ssh", c(target, shQuote(final_cmd)))
+      final_res <- .run_cmd("ssh", c(target, final_cmd))
       final_status <- if (nzchar(final_res$stdout)) trimws(strsplit(final_res$stdout, "\n")[[1]][1]) else "UNKNOWN"
       cli::cli_alert_info("Job {job_id} final status: {final_status}")
       if (final_status != "COMPLETED") {
         err_file <- fs::path(remote_session_dir, glue::glue("{.SLURM_JOB_NAME}_{job_id}.err"))
         err_cmd <- glue::glue("if [ -f {err_file} ]; then tail -n 20 {err_file}; fi")
-        err_res <- .run_cmd("ssh", c(target, shQuote(err_cmd)))
+        err_res <- .run_cmd("ssh", c(target, err_cmd))
         if (nzchar(err_res$stdout)) {
           cli::cli_h3("Error output")
           cli::cli_code(err_res$stdout)
@@ -274,12 +291,15 @@ download_trained_model <- function(hpc_host, hpc_user = NULL, remote_session_dir
   local_model_dir <- fs::path(local_output_dir, output_name)
   fs::dir_create(local_model_dir)
   remote_output_dir <- fs::path(remote_session_dir, "output")
+  step_id <- cli::cli_progress_step("Downloading trained model...", msg_done = "Download complete", msg_failed = "Download failed")
   res <- .run_cmd(
     "rsync",
-    c("-avz", "--progress", paste0(target, ":", remote_output_dir, "/"), paste0(local_model_dir, "/")),
-    timeout = 0, retries = 2, echo = TRUE
+    c("-az", "--stats", paste0(target, ":", remote_output_dir, "/"), paste0(local_model_dir, "/")),
+    timeout = Inf, retries = 2, echo = FALSE
   )
-  if (!identical(res$status, 0L)) cli::cli_abort("Failed to download trained model from HPC: {res$stderr}")
+  if (!identical(res$status, 0L)) { cli::cli_progress_done(step_id, result = "failed"); cli::cli_abort("Failed to download trained model from HPC: {res$stderr}") }
+  cli::cli_progress_done(step_id, result = "done")
+  .rsync_summary(res$stdout, "Download")
   return(local_model_dir)
 }
 

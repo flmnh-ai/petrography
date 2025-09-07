@@ -164,11 +164,9 @@ train_model_hpc <- function(data_dir, output_name, max_iter, learning_rate, num_
   remote_session_dir <- setup_remote_directories(hpc_host, hpc_user, hpc_base_dir, output_name)
 
   # Sync data to HPC
-  cli::cli_alert_info("Syncing data to HPC...")
   sync_data_to_hpc(data_dir, hpc_host, hpc_user, remote_session_dir, rsync_mode = rsync_mode, dry_run = dry_run)
 
   # Sync code to HPC
-  cli::cli_alert_info("Syncing training code to HPC...")
   sync_code_to_hpc(hpc_host, hpc_user, remote_session_dir, dry_run = dry_run)
 
   # Generate and submit SLURM job
@@ -191,7 +189,6 @@ train_model_hpc <- function(data_dir, output_name, max_iter, learning_rate, num_
   cli::cli_alert_success("Training completed successfully on HPC!")
 
   # Download trained model
-  cli::cli_alert_info("Downloading trained model...")
   local_model_dir <- download_trained_model(hpc_host, hpc_user, remote_session_dir,
                                            output_name, local_output_dir)
 
