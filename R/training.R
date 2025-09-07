@@ -33,7 +33,18 @@ train_model <- function(data_dir,
                        local_output_dir = "Detectron2_Models",
                        rsync_mode = c("update", "mirror"),
                        dry_run = FALSE) {
+  
+  cli::cli_h1("Model Training")
+  training_mode <- if(is.null(hpc_host)) "Local" else paste0("HPC (", hpc_host, ")")
+  cli::cli_dl(c(
+    "Model name" = output_name,
+    "Mode" = training_mode,
+    "Max iterations" = max_iter,
+    "Learning rate" = learning_rate,
+    "Classes" = num_classes
+  ))
 
+  start_time <- Sys.time()
 
   # Validate inputs
   if (!fs::dir_exists(data_dir)) {
@@ -66,13 +77,19 @@ train_model <- function(data_dir,
 
   # Determine training mode
   if (is.null(hpc_host)) {
-    return(train_model_local(data_dir, output_name, max_iter, learning_rate, num_classes, device, eval_period, checkpoint_period, local_output_dir))
+    result <- train_model_local(data_dir, output_name, max_iter, learning_rate, num_classes, device, eval_period, checkpoint_period, local_output_dir)
   } else {
     rsync_mode <- match.arg(rsync_mode)
-    return(train_model_hpc(data_dir, output_name, max_iter, learning_rate, num_classes, eval_period, checkpoint_period,
+    result <- train_model_hpc(data_dir, output_name, max_iter, learning_rate, num_classes, eval_period, checkpoint_period,
                           hpc_host, hpc_user, hpc_base_dir, local_output_dir,
-                          rsync_mode, dry_run))
+                          rsync_mode, dry_run)
   }
+  
+  duration <- difftime(Sys.time(), start_time, units = "mins")
+  cli::cli_alert_success("Training completed in {round(duration, 1)} minutes")
+  cli::cli_alert_info("Model saved to: {.path {result}}")
+  
+  return(result)
 }
 
 #' Train model locally using available hardware

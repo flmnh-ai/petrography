@@ -19,7 +19,6 @@ Training **inclusions detection** model for petrographic analysis with extended 
 
 ```{r setup, message=FALSE}
 library(tidyverse)
-library(cli)
 library(fs)
 library(petrographer)
 
@@ -39,54 +38,30 @@ config <- list(
   dry_run = FALSE
 )
 
-cli_h1("Training Configuration")
-cli_dl(config[!names(config) %in% c("hpc_base_dir")])
+cat("\n=== Training Configuration ===\n")
+for(name in names(config)) {
+  if(name != "hpc_base_dir") {
+    cat(sprintf("%s: %s\n", name, config[[name]]))
+  }
+}
 ```
 
 ## Training
 
 ```{r training}
-cli_h2("Data Validation")
-
-# Prints a concise summary; aborts if invalid
+# Validate dataset and train model
 validate_dataset(config$data_dir)
-
-## size is included in validate_dataset()
-
-cli_h2("Starting Training")
-
-start_time <- Sys.time()
-
-# Optional: quick HPC preflight if using HPC
-if (!is.null(config$hpc_host)) {
-  check_hpc(config$hpc_host, config$hpc_user)
-}
 
 # Train model
 model_path <- do.call(train_model, config)
-
-duration <- difftime(Sys.time(), start_time, units = "mins") |> as.numeric()
-cli_alert_success("Training completed in {round(duration, 1)} minutes")
-cli_alert_info("Model saved to: {model_path}")
 ```
 
 ## Evaluation
 
 ```{r evaluation}
-cli_h2("Evaluating Results")
-
 # Load training metrics
 eval_result <- evaluate_training(model_dir = model_path)
 summary_stats <- eval_result$summary
-
-cli_alert_info("Training iterations: {summary_stats$total_iterations}")
-cli_alert_info("Validation evaluations: {summary_stats$validation_evaluations}")
-
-# Final metrics if available
-if (nrow(eval_result$training_data) > 0) {
-  final_metrics <- tail(eval_result$training_data, 1)
-  cli_alert_info("Final loss: {round(final_metrics$total_loss, 4)}")
-}
 ```
 
 ## Visualization
@@ -130,7 +105,7 @@ if (nrow(eval_result$training_data) > 0) {
 ## Model Testing
 
 ```{r testing}
-cli_h2("Testing Model")
+cat("\n== Testing Model ==\n")
 
 # Load trained model
 model <- load_model(
@@ -143,48 +118,32 @@ model <- load_model(
 val_images <- dir_ls(path(config$data_dir, "val"), 
                         regexp = "(?i)\\.(jpg|jpeg|png)$")
 
-if (length(val_images) > 0) {
-  test_image <- val_images[1]
-  
-  test_result <- predict_image(
-    image_path = test_image,
-    model = model,
-    output_dir = path("results", glue::glue("{config$output_name}_test"))
-  )
-  
-  cli_alert_info("Test image: {path_file(test_image)}")
-  cli_alert_info("Objects detected: {nrow(test_result)}")
-  
-  if (nrow(test_result) > 0) {
-    cli_alert_info("Mean confidence: {round(mean(test_result$confidence), 3)}")
-  }
-} else {
-  cli_alert_warning("No validation images found for testing")
-}
+test_image <- val_images[1]
+
+test_result <- predict_image(
+  image_path = test_image,
+  model = model,
+  output_dir = path("results", glue::glue("{config$output_name}_test"))
+)
+
+cat(sprintf("Test image: %s\n", path_file(test_image)))
+cat(sprintf("Objects detected: %d\n", nrow(test_result)))
+cat(sprintf("Mean confidence: %.3f\n", mean(test_result$confidence)))
+```
+
+```{r}
+library(magick)
+list.files(path("results", glue::glue("{config$output_name}_test")), full.names = TRUE)[[1]] |>
+image_read() |>
+  plot()
 ```
 
 ## Summary
 
 ```{r summary}
-cli_h2("Training Summary")
-
-cli_dl(c(
-  "Model" = config$output_name,
-  "Duration" = glue::glue("{round(duration, 1)} minutes"),
-  "Iterations" = summary_stats$total_iterations,
-  "Mode" = if(is.null(config$hpc_host)) "Local" else glue::glue("HPC ({config$hpc_host})"),
-  "Location" = model_path
-))
+cat("\n== Training Summary ==\n")
 
 if (exists("test_result") && nrow(test_result) > 0) {
-  cli_alert_success("Model successfully tested with {nrow(test_result)} detections")
+  cat(sprintf("Model successfully tested with %d detections\n", nrow(test_result)))
 }
-
-cli_h3("Next Steps")
-cli_ul(c(
-  "Review training convergence",
-  "Test on additional images", 
-  "Compare with previous versions",
-  "Archive model in zoo"
-))
 ```

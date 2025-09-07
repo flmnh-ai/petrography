@@ -41,6 +41,8 @@ validate_coco_dataset <- function(data_dir) {
 #' @return A list with validation flags, counts, and size metrics
 #' @export
 validate_dataset <- function(data_dir) {
+  cli::cli_h2("Dataset Validation")
+  
   # Reuse coco validation (prints only when autoprinted; aborts if invalid)
   val <- validate_coco_dataset(data_dir)
 
@@ -53,6 +55,16 @@ validate_dataset <- function(data_dir) {
   out$size_bytes <- as.numeric(total_bytes)
   out$size_mb <- round(total_mb, 1)
   class(out) <- c("DatasetValidation", class(out))
+  
+  # Print validation summary
+  cli::cli_dl(c(
+    "Data directory" = out$data_dir,
+    "Train images" = out$train_images,
+    "Val images" = out$val_images,
+    "Total size" = paste0(out$size_mb, " MB")
+  ))
+  
+  cli::cli_alert_success("Dataset validation passed")
   out
 }
 

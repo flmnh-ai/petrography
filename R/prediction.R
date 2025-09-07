@@ -156,6 +156,9 @@ predict_batch <- function(input_dir, model, use_slicing = TRUE,
 #' @export
 evaluate_training <- function(model_dir = "Detectron2_Models",
                              output_dir = "results/evaluation") {
+  
+  cli::cli_h2("Training Evaluation")
+  cli::cli_alert_info("Loading training metrics from: {.path {model_dir}}")
 
   # Create output directory
   fs::dir_create(output_dir)
@@ -219,6 +222,22 @@ evaluate_training <- function(model_dir = "Detectron2_Models",
   if (exists("validation_metrics") && nrow(validation_metrics) > 0) {
     result$validation_data <- validation_metrics
   }
+  
+  # Print summary
+  cli::cli_dl(c(
+    "Training iterations" = summary$total_iterations,
+    "Validation evaluations" = summary$validation_evaluations,
+    "Training records" = nrow(training_data),
+    "Output directory" = output_dir
+  ))
+  
+  if (nrow(training_data) > 0) {
+    final_metrics <- tail(training_data, 1)
+    if ("total_loss" %in% names(final_metrics)) {
+      cli::cli_alert_info("Final training loss: {round(final_metrics$total_loss, 4)}")
+    }
+  }
 
+  cli::cli_alert_success("Training evaluation completed")
   return(result)
 }

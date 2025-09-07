@@ -29,7 +29,6 @@ library(tidyverse)
 library(scico)
 library(patchwork)
 library(glue)
-library(cli)
 library(fs)
 library(petrographer)
 
@@ -48,8 +47,12 @@ config <- list(
 # Create output directory
 dir_create(config$output_dir)
 
-cli_h1("Analysis Configuration")
-cli_dl(config[!names(config) %in% c("batch_input_dir")])
+cat("\n=== Analysis Configuration ===\n")
+for(name in names(config)) {
+  if(name != "batch_input_dir") {
+    cat(sprintf("%s: %s\n", name, config[[name]]))
+  }
+}
 ```
 
 ## Analysis Functions
@@ -57,16 +60,14 @@ cli_dl(config[!names(config) %in% c("batch_input_dir")])
 We now use the optimized functions from `petrography_simple.R` which separate model loading from prediction for maximum efficiency. The model is loaded once and reused across all predictions.
 
 ```{r show-functions}
-cli_h2("Available Analysis Functions")
-cli_ul(c(
-  "load_model() - Load detection model once for reuse",
-  "predict_image() - Analyze single image with loaded model", 
-  "predict_batch() - Process multiple images efficiently",
-  "evaluate_training() - Assess model performance",
-  "enhance_results() - Add derived metrics",
-  "summarize_by_image() - Per-image statistics",
-  "get_population_stats() - Overall population metrics"
-))
+cat("\n== Available Analysis Functions ==\n")
+cat("• load_model() - Load detection model once for reuse\n")
+cat("• predict_image() - Analyze single image with loaded model\n")
+cat("• predict_batch() - Process multiple images efficiently\n")
+cat("• evaluate_training() - Assess model performance\n")
+cat("• enhance_results() - Add derived metrics\n")
+cat("• summarize_by_image() - Per-image statistics\n")
+cat("• get_population_stats() - Overall population metrics\n")
 ```
 
 ## Model Loading
@@ -74,7 +75,7 @@ cli_ul(c(
 Load the trained detection model once for efficient reuse across all predictions.
 
 ```{r load-model}
-cli_h2("Loading Model")
+cat("\n== Loading Model ==\n")
 
 # Load the detection model with optimized settings
 model <- load_model(
@@ -82,13 +83,10 @@ model <- load_model(
   device = config$device
 )
 
-cli_alert_success("Model loaded successfully")
-cli_dl(c(
-  "Model path" = path_file(model$model_path),
-  "Config path" = path_file(model$config_path), 
-  "Confidence threshold" = model$confidence,
-  "Device" = model$device
-))
+cat(sprintf("Model path: %s\n", path_file(model$model_path)))
+cat(sprintf("Config path: %s\n", path_file(model$config_path)))
+cat(sprintf("Confidence threshold: %s\n", model$confidence))
+cat(sprintf("Device: %s\n", model$device))
 ```
 
 ## Model Training Evaluation
@@ -96,18 +94,15 @@ cli_dl(c(
 Evaluate the performance of our trained model by analyzing training logs.
 
 ```{r training-evaluation}
-cli_h2("Training Evaluation")
+cat("\n== Training Evaluation ==\n")
 
 # Run training evaluation
 eval_result <- evaluate_training()
 
-cli_h3("Evaluation Summary")
-cli_dl(c(
-  "Output directory" = eval_result$output_dir,
-  "Metrics available" = eval_result$summary$metrics_available,
-  "Training data records" = nrow(eval_result$training_data),
-  "Total iterations" = eval_result$summary$total_iterations
-))
+cat(sprintf("Output directory: %s\n", eval_result$output_dir))
+cat(sprintf("Metrics available: %s\n", eval_result$summary$metrics_available))
+cat(sprintf("Training data records: %d\n", nrow(eval_result$training_data)))
+cat(sprintf("Total iterations: %s\n", eval_result$summary$total_iterations))
 
 # Final metrics from training data
 if (nrow(eval_result$training_data) > 0) {
@@ -115,11 +110,9 @@ if (nrow(eval_result$training_data) > 0) {
   final_loss <- tail(training_df$total_loss[!is.na(training_df$total_loss)], 1)
   final_lr <- tail(training_df$lr[!is.na(training_df$lr)], 1)
   
-  cli_h3("Final Training Metrics")
-  cli_dl(c(
-    "Final total loss" = round(final_loss, 4),
-    "Final learning rate" = format(final_lr, scientific = TRUE)
-  ))
+  cat("\n=== Final Training Metrics ===\n")
+  cat(sprintf("Final total loss: %.4f\n", final_loss))
+  cat(sprintf("Final learning rate: %s\n", format(final_lr, scientific = TRUE)))
 }
 ```
 
@@ -162,7 +155,7 @@ print(p_lr)
 Demonstrate detailed analysis on a single image.
 
 ```{r single-image-analysis}
-cli_h2("Single Image Analysis")
+cat("\n== Single Image Analysis ==\n")
 
 # Run prediction on single image using loaded model
 single_result <- predict_image(
@@ -174,8 +167,8 @@ single_result <- predict_image(
   output_dir = path(config$output_dir, "single_image")
 )
 
-cli_alert_info("Image analyzed: {path_file(config$single_image)}")
-cli_alert_success("Objects detected: {nrow(single_result)}")
+cat(sprintf("Image analyzed: %s\n", path_file(config$single_image)))
+cat(sprintf("Objects detected: %d\n", nrow(single_result)))
 ```
 
 ```{r single-image-display, fig.width=30, fig.height=12}
@@ -194,28 +187,26 @@ if (length(pred_files) > 0) {
   par(mar = c(0, 0, 0, 0))
   plot(combined)
 } else {
-  cli_alert_warning("No prediction images found")
+  cat("Warning: No prediction images found\n")
 }
 ```
 
 Analyze morphological properties of detected objects.
 
 ```{r single-image-morphology}
-cli_h3("Morphological Analysis")
+cat("\n=== Morphological Analysis ===\n")
 
 if (nrow(single_result) > 0) {
   # Display summary statistics
   morph_stats <- get_population_stats(single_result)
   
-  cli_dl(c(
-    "Objects detected" = nrow(single_result),
-    "Total area" = glue("{round(morph_stats$total_area)} pixels"),
-    "Mean area" = glue("{round(morph_stats$mean_area)} pixels"),
-    "Mean circularity" = round(morph_stats$mean_circularity, 3),
-    "Mean eccentricity" = round(morph_stats$mean_eccentricity, 3)
-  ))
+  cat(sprintf("Objects detected: %d\n", nrow(single_result)))
+  cat(sprintf("Total area: %d pixels\n", round(morph_stats$total_area)))
+  cat(sprintf("Mean area: %d pixels\n", round(morph_stats$mean_area)))
+  cat(sprintf("Mean circularity: %.3f\n", morph_stats$mean_circularity))
+  cat(sprintf("Mean eccentricity: %.3f\n", morph_stats$mean_eccentricity))
 } else {
-  cli_alert_info("No objects detected for morphological analysis")
+  cat("No objects detected for morphological analysis\n")
 }
   
 # Interactive data table
@@ -260,7 +251,7 @@ if (nrow(single_result) > 0) {
   # Combine plots
   (p1 + p2) / (p3 + p4)
 } else {
-  cli_alert_info("No data available for morphological plots")
+  cat("No data available for morphological plots\n")
 }
 ```
 
@@ -269,7 +260,7 @@ if (nrow(single_result) > 0) {
 Process multiple images and analyze population statistics.
 
 ```{r batch-processing}
-cli_h2("Batch Processing")
+cat("\n== Batch Processing ==\n")
 
 # Create a temp directory with a few images for demo
 temp_batch_dir <- path(config$output_dir, "temp_batch_input")
@@ -285,7 +276,7 @@ for (img in demo_images) {
   file_copy(img, temp_batch_dir)
 }
 
-cli_alert_info("Copied {length(demo_images)} images for batch demo")
+cat(sprintf("Copied %d images for batch demo\n", length(demo_images)))
 
 # Run batch prediction using loaded model
 batch_result <- predict_batch(
@@ -298,30 +289,26 @@ batch_result <- predict_batch(
   save_visualizations = TRUE
 )
 
-cli_h3("Batch Processing Results")
-cli_dl(c(
-  "Images processed" = length(unique(batch_result$image_name)),
-  "Total objects detected" = nrow(batch_result),
-  "Output directory" = path(config$output_dir, "batch_results")
-))
+cat("\n=== Batch Processing Results ===\n")
+cat(sprintf("Images processed: %d\n", length(unique(batch_result$image_name))))
+cat(sprintf("Total objects detected: %d\n", nrow(batch_result)))
+cat(sprintf("Output directory: %s\n", path(config$output_dir, "batch_results")))
 ```
 
 Analyze batch results and population statistics.
 
 ```{r batch-analysis}
-cli_h3("Population Analysis")
+cat("\n=== Population Analysis ===\n")
 
 if (nrow(batch_result) > 0) {
   # Population statistics
   pop_stats <- get_population_stats(batch_result)
   
-  cli_dl(c(
-    "Total images processed" = pop_stats$unique_images,
-    "Total objects detected" = pop_stats$total_objects,
-    "Average objects per image" = round(pop_stats$mean_objects_per_image, 1),
-    "Total area detected" = glue("{round(pop_stats$total_area)} pixels"),
-    "Mean object area" = glue("{round(pop_stats$mean_area)} pixels")
-  ))
+  cat(sprintf("Total images processed: %d\n", pop_stats$unique_images))
+  cat(sprintf("Total objects detected: %d\n", pop_stats$total_objects))
+  cat(sprintf("Average objects per image: %.1f\n", pop_stats$mean_objects_per_image))
+  cat(sprintf("Total area detected: %d pixels\n", round(pop_stats$total_area)))
+  cat(sprintf("Mean object area: %d pixels\n", round(pop_stats$mean_area)))
 
   # Summary statistics by image using package function
   batch_summary <- summarize_by_image(batch_result)
@@ -330,7 +317,7 @@ if (nrow(batch_result) > 0) {
   batch_summary %>%
     mutate(across(where(is.numeric), ~round(.x, 3)))
 } else {
-  cli_alert_info("No batch data available for analysis")
+  cat("No batch data available for analysis\n")
 }
 ```
 
@@ -381,7 +368,7 @@ if (nrow(batch_result) > 0) {
   # Combine plots
   (p1 + p2) / (p3 + p4)
 } else {
-  cli_alert_info("No batch data available for visualization")
+  cat("No batch data available for visualization\n")
 }
 ```
 
