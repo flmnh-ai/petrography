@@ -146,52 +146,35 @@ train_model_hpc <- function(data_dir, output_name, max_iter, learning_rate, num_
     cli::cli_abort("Missing `hpc_base_dir`: please specify the base path for training files on your HPC system.")
   }
 
-  # Minimal SSH connectivity (prompts Duo once)
-  if (!test_ssh_connection(hpc_host, hpc_user)) cli::cli_abort("Cannot connect to HPC host: {hpc_host}")
-  cli::cli_alert_success("Connected to HPC: {hpc_host}")
+  # Build training parameters
+  training_params <- c(
+    "--dataset-name", paste0(output_name, "_train"),
+    "--annotation-json", "data/train/_annotations.coco.json",
+    "--image-root", "data/train",
+    "--val-annotation-json", "data/val/_annotations.coco.json", 
+    "--val-image-root", "data/val",
+    "--output-dir", "output",
+    "--num-classes", as.character(num_classes),
+    "--max-iter", as.character(max_iter),
+    "--learning-rate", as.character(learning_rate),
+    "--eval-period", as.character(eval_period),
+    "--checkpoint-period", as.character(checkpoint_period),
+    "--device", "cuda"
+  )
 
-  # Setup remote directories
-  remote_session_dir <- setup_remote_directories(hpc_host, hpc_user, hpc_base_dir, output_name)
-
-  # Sync data to HPC
-  sync_data_to_hpc(data_dir, hpc_host, hpc_user, remote_session_dir, rsync_mode = rsync_mode, dry_run = dry_run)
-
-  # Sync code to HPC
-  sync_code_to_hpc(hpc_host, hpc_user, remote_session_dir, dry_run = dry_run)
-
-  # Generate and submit SLURM job
-  cli::cli_alert_info("Generating and submitting SLURM job...")
-  job_id <- submit_slurm_job(hpc_host, hpc_user, remote_session_dir, output_name,
-                            max_iter, learning_rate, num_classes, eval_period, checkpoint_period)
-
-  cli::cli_alert_success("Job submitted with ID: {job_id}")
-  cli::cli_alert_info("Monitoring job progress...")
-
-  # Monitor job (bounded)
-  job_status <- monitor_slurm_job(hpc_host, hpc_user, job_id, remote_session_dir)
-
-  if (job_status != "COMPLETED") {
-    cli::cli_abort("Training job failed with status: {job_status}")
-  }
-
-  cli::cli_alert_success("Training completed successfully on HPC!")
-
-  # Download trained model
-  local_model_dir <- download_trained_model(hpc_host, hpc_user, remote_session_dir,
-                                           output_name, local_output_dir)
-
-  # Verify expected artifacts
-  if (!verify_local_artifacts(local_model_dir)) {
-    cli::cli_abort("Trained model artifacts incomplete; leaving remote session intact for inspection")
-  }
-
-  # Note: remote cleanup removed by default for safety; use HPC manual cleanup policies
-
-  # Attempt to close SSH ControlMaster
-  close_ssh_connection(hpc_host, hpc_user)
-
+  # Execute HPC workflow
+  cli::cli_alert_info("Connecting to HPC: {hpc_host}")
+  session <- hpc_session(hpc_host, hpc_user)
+  
+  cli::cli_alert_info("Uploading data and submitting job...")
+  job_info <- hpc_sync_and_submit(session, data_dir, hpc_base_dir, output_name, training_params)
+  
+  hpc_monitor(session, job_info$job_id, job_info$remote_base)
+  
+  result <- hpc_download(session, job_info$remote_base, output_name, local_output_dir)
+  
+  ssh::ssh_disconnect(session)
   cli::cli_alert_success("HPC training pipeline completed!")
-  cli::cli_alert_info("Model saved to: {.path {local_model_dir}}")
-
-  return(local_model_dir)
+  
+  return(result)
 }

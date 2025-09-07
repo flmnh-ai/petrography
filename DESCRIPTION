@@ -18,11 +18,11 @@ RoxygenNote: 7.3.3
 Depends:
     R (>= 4.1)
 Imports: 
+    ssh,
     cli,
     dplyr,
     fs,
     glue,
-    processx,
     jsonlite,
     purrr,
     readr,
