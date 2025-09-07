@@ -9,7 +9,8 @@ hpc_sync_and_submit(
   data_dir,
   hpc_base_dir,
   output_name,
-  training_params
+  training_params,
+  gpus = 1
 )
 }
 \description{

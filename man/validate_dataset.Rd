@@ -2,16 +2,16 @@
 % Please edit documentation in R/dataset.R
 \name{validate_dataset}
 \alias{validate_dataset}
-\title{Validate dataset and compute total size}
+\title{Validate a COCO-style dataset directory}
 \usage{
 validate_dataset(data_dir)
 }
 \arguments{
-\item{data_dir}{Directory containing the dataset (expects 'train' and 'val')}
+\item{data_dir}{Directory containing 'train' and 'val' subdirectories}
 }
 \value{
 A list with validation flags, counts, and size metrics
 }
 \description{
-Validate dataset and compute total size
+Validate a COCO-style dataset directory
 }

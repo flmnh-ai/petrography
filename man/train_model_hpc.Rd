@@ -12,6 +12,7 @@ train_model_hpc(
   num_classes,
   eval_period,
   checkpoint_period,
+  gpus,
   hpc_host,
   hpc_user,
   hpc_base_dir,

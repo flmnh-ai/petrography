@@ -22,32 +22,34 @@ validate_dataset <- function(data_dir) {
   total_bytes <- sum(fs::file_size(files), na.rm = TRUE)
   total_mb <- as.numeric(total_bytes) / (1024^2)
 
-  res <- list(
-    data_dir = data_dir,
-    train_dir_exists = train_ok,
-    val_dir_exists = val_ok,
-    train_annotations = train_anno,
-    val_annotations = val_anno,
-    train_images = train_images,
-    val_images = val_images,
-    size_bytes = as.numeric(total_bytes),
-    size_mb = round(total_mb, 1),
-    valid = train_ok && val_ok && train_anno && val_anno && (train_images + val_images) > 0
-  )
+  valid <- train_ok && val_ok && train_anno && val_anno && (train_images + val_images) > 0
+
+  # Always show validation results
+  cli::cli_h2("Dataset Validation")
+  cli::cli_dl(c(
+    "Data directory" = data_dir,
+    "Train images" = train_images,
+    "Val images" = val_images,
+    "Train annotations" = if (isTRUE(train_anno)) "✓" else "✗",
+    "Val annotations" = if (isTRUE(val_anno)) "✓" else "✗",
+    "Total size" = glue::glue("{round(total_mb, 1)} MB")
+  ))
   
-  class(res) <- c("DatasetValidation", class(res))
-  if (!res$valid) {
-    # Print a concise summary then abort
-    print(res)
+  if (!valid) {
+    cli::cli_alert_danger("Dataset invalid")
     cli::cli_abort("Dataset validation failed")
   }
-  res
-}
-
-#' @export
-validate_coco_dataset <- function(data_dir) {
-  .Deprecated("validate_dataset", package = "petrographer")
-  validate_dataset(data_dir)
+  
+  cli::cli_alert_success("Dataset valid")
+  
+  # Return simple list
+  invisible(list(
+    data_dir = data_dir,
+    train_images = train_images,
+    val_images = val_images,
+    size_mb = round(total_mb, 1),
+    valid = valid
+  ))
 }
 
 #' Summarize a dataset directory
@@ -68,6 +70,16 @@ summarize_dataset <- function(data_dir) {
       fs::file_exists(fs::path(data_dir, d, "_annotations.coco.json"))
     }, logical(1))
   )
-  class(out) <- c("DatasetSummary", class(out))
-  out
+  
+  # Print summary
+  tot <- sum(out$images, na.rm = TRUE)
+  cli::cli_h2("Dataset Summary")
+  cli::cli_dl(c(
+    "Total images" = tot,
+    "Splits" = paste(out$split, collapse = ", ")
+  ))
+  
+  # Show the tibble
+  print(out)
+  invisible(out)
 }
