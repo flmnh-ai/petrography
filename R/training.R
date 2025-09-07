@@ -15,7 +15,6 @@
 #' @param hpc_user Username for HPC (default: current user)
 #' @param hpc_base_dir Remote base directory on HPC (default: "~/petrography_training")
 #' @param local_output_dir Local directory to save trained model (default: "Detectron2_Models")
-#' @param cleanup_remote Deprecated; remote cleanup is not performed (kept for compatibility)
 #' @param poll_interval How often to check job status in seconds (default: 30)
 #' @param max_duration Max seconds to monitor before timing out (default: 8 hours)
 #' @param max_idle Max seconds without output before aborting (default: 30 minutes)
@@ -36,7 +35,6 @@ train_model <- function(data_dir,
                        hpc_user = NULL,
                        hpc_base_dir = NULL,
                        local_output_dir = "Detectron2_Models",
-                       cleanup_remote = FALSE,
                        poll_interval = 30,
                        max_duration = 8*3600,
                        max_idle = 1800,
@@ -81,7 +79,7 @@ train_model <- function(data_dir,
     rsync_mode <- match.arg(rsync_mode)
     return(train_model_hpc(data_dir, output_name, max_iter, learning_rate, num_classes, eval_period, checkpoint_period,
                           hpc_host, hpc_user, hpc_base_dir, local_output_dir,
-                          cleanup_remote, poll_interval, max_duration, max_idle, hpc_profile, rsync_mode, dry_run))
+                          poll_interval, max_duration, max_idle, hpc_profile, rsync_mode, dry_run))
   }
 }
 
@@ -150,7 +148,7 @@ train_model_local <- function(data_dir, output_name, max_iter, learning_rate, nu
 #' @keywords internal
 train_model_hpc <- function(data_dir, output_name, max_iter, learning_rate, num_classes, eval_period, checkpoint_period,
                            hpc_host, hpc_user, hpc_base_dir, local_output_dir,
-                           cleanup_remote, poll_interval, max_duration, max_idle, hpc_profile, rsync_mode, dry_run) {
+                           poll_interval, max_duration, max_idle, hpc_profile, rsync_mode, dry_run) {
 
   if (is.null(hpc_base_dir)) {
     cli::cli_abort("Missing `hpc_base_dir`: please specify the base path for training files on your HPC system.")

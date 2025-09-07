@@ -304,21 +304,6 @@ download_trained_model <- function(hpc_host, hpc_user = NULL, remote_session_dir
 }
 
 
-#' Clean up remote session directory
-#' @keywords internal
-cleanup_remote_session <- function(hpc_host, hpc_user = NULL, remote_session_dir, hpc_base_dir) {
-  target <- .ssh_target(hpc_host, hpc_user)
-  if (!.safe_remote_path(remote_session_dir, hpc_base_dir)) {
-    cli::cli_alert_warning("Refusing to clean up unsafe remote path: {remote_session_dir}")
-    return(invisible(FALSE))
-  }
-  rm_cmd <- glue::glue("rm -rf {shQuote(remote_session_dir)}")
-  res <- .run_cmd("ssh", c(target, shQuote(rm_cmd)))
-  if (!identical(res$status, 0L)) {
-    cli::cli_alert_warning("Failed to clean up remote session directory: {remote_session_dir}")
-  }
-  invisible(identical(res$status, 0L))
-}
 
 verify_local_artifacts <- function(local_model_dir) {
   pth <- fs::path(local_model_dir, "model_final.pth")
