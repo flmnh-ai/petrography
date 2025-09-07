@@ -11,6 +11,7 @@
 #' @param device Device for local training: 'cpu', 'cuda', 'mps' (default: 'cuda')
 #' @param eval_period Validation evaluation frequency in iterations (default: 100)
 #' @param checkpoint_period Checkpoint saving frequency (0=final only, >0=every N iterations, default: 0)
+#' @param gpus Number of GPUs for HPC training (default: 1, ignored for local training)
 #' @param hpc_host SSH hostname for HPC training (default: PETROGRAPHER_HPC_HOST env var, or "" for local training)
 #' @param hpc_user Username for HPC (default: NULL)
 #' @param hpc_base_dir Remote base directory on HPC (default: PETROGRAPHER_HPC_BASE_DIR env var)
@@ -26,12 +27,13 @@ train_model <- function(data_dir,
                        device = "cuda",
                        eval_period = 100,
                        checkpoint_period = 0,
+                       gpus = 1,
                        hpc_host = Sys.getenv("PETROGRAPHER_HPC_HOST", ""),
                        hpc_user = NULL,
                        hpc_base_dir = Sys.getenv("PETROGRAPHER_HPC_BASE_DIR", ""),
-                       local_output_dir = "Detectron2_Models",
+                       local_output_dir = here::here("Detectron2_Models"),
                        rsync_mode = c("update", "mirror")) {
-  
+
   cli::cli_h1("Model Training")
   training_mode <- if(is.null(hpc_host) || hpc_host == "") "Local" else paste0("HPC (", hpc_host, ")")
   cli::cli_h2("Training Configuration")
@@ -93,13 +95,13 @@ train_model <- function(data_dir,
     result <- train_model_local(data_dir, output_name, max_iter, learning_rate, num_classes, device, eval_period, checkpoint_period, local_output_dir)
   } else {
     result <- train_model_hpc(data_dir, output_name, max_iter, learning_rate, num_classes, eval_period, checkpoint_period,
-                          hpc_host, hpc_user, hpc_base_dir, local_output_dir)
+                          gpus, hpc_host, hpc_user, hpc_base_dir, local_output_dir)
   }
-  
+
   duration_mins <- round(as.numeric(difftime(Sys.time(), start_time, units = "mins")), 1)
   cli::cli_alert_success("Training completed in {duration_mins} minute{?s}")
   cli::cli_alert_info("Model saved to: {.path {result}}")
-  
+
   return(result)
 }
 
@@ -167,7 +169,7 @@ train_model_local <- function(data_dir, output_name, max_iter, learning_rate, nu
 #' Train model on HPC using SLURM
 #' @keywords internal
 train_model_hpc <- function(data_dir, output_name, max_iter, learning_rate, num_classes, eval_period, checkpoint_period,
-                           hpc_host, hpc_user, hpc_base_dir, local_output_dir) {
+                           gpus, hpc_host, hpc_user, hpc_base_dir, local_output_dir) {
 
   if (is.null(hpc_base_dir) || hpc_base_dir == "") {
     cli::cli_abort("Missing `hpc_base_dir`: please specify the base path for training files on your HPC system or set PETROGRAPHER_HPC_BASE_DIR environment variable.")
@@ -178,7 +180,7 @@ train_model_hpc <- function(data_dir, output_name, max_iter, learning_rate, num_
     "--dataset-name", paste0(output_name, "_train"),
     "--annotation-json", "data/train/_annotations.coco.json",
     "--image-root", "data/train",
-    "--val-annotation-json", "data/val/_annotations.coco.json", 
+    "--val-annotation-json", "data/val/_annotations.coco.json",
     "--val-image-root", "data/val",
     "--output-dir", "output",
     "--num-classes", as.character(num_classes),
@@ -186,20 +188,21 @@ train_model_hpc <- function(data_dir, output_name, max_iter, learning_rate, num_
     "--learning-rate", as.character(learning_rate),
     "--eval-period", as.character(eval_period),
     "--checkpoint-period", as.character(checkpoint_period),
-    "--device", "cuda"
+    "--device", "cuda",
+    "--num-gpus", as.character(gpus)
   )
 
   # Execute HPC workflow with SSH multiplexing
   target <- hpc_authenticate(hpc_host, hpc_user)
-  
+
   cli::cli_alert_info("Uploading data and submitting job...")
-  job_info <- hpc_sync_and_submit(target, data_dir, hpc_base_dir, output_name, training_params)
-  
+  job_info <- hpc_sync_and_submit(target, data_dir, hpc_base_dir, output_name, training_params, gpus)
+
   hpc_monitor(target, job_info$job_id, job_info$remote_base)
-  
+
   result <- hpc_download(target, job_info$remote_base, output_name, local_output_dir)
-  
+
   cli::cli_alert_success("HPC training pipeline completed!")
-  
+
   return(result)
 }

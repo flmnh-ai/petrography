@@ -42,7 +42,7 @@ hpc_authenticate <- function(hpc_host = "hpg", hpc_user = NULL) {
 
 #' Upload data/code and submit SLURM job
 #' @keywords internal
-hpc_sync_and_submit <- function(target, data_dir, hpc_base_dir, output_name, training_params) {
+hpc_sync_and_submit <- function(target, data_dir, hpc_base_dir, output_name, training_params, gpus = 1) {
   timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
   remote_base <- fs::path(hpc_base_dir, output_name, timestamp)
 
@@ -76,13 +76,16 @@ hpc_sync_and_submit <- function(target, data_dir, hpc_base_dir, output_name, tra
   ), timeout = Inf, spinner = TRUE, error_on_status = TRUE)
 
   # Generate SLURM script inline
+  # Adjust resources based on GPU count
+  cpus <- if (gpus > 1) gpus * 4 else 4
+  mem <- if (gpus > 1) paste0(gpus * 16, "gb") else "16gb"
+
   slurm_script <- paste0("#!/bin/bash\n",
     "#SBATCH --job-name=petrographer_train\n",
-    "#SBATCH --time=01:00:00\n",
-    "#SBATCH --cpus-per-task=4\n",
-    "#SBATCH --partition=hpg-b200\n",
-    "#SBATCH --mem=24gb\n",
-    "#SBATCH --gpus=1\n",
+    "#SBATCH --time=02:00:00\n",
+    "#SBATCH --cpus-per-task=", cpus, "\n",
+    "#SBATCH --mem=", mem, "\n",
+    "#SBATCH --gpus=", gpus, "\n",
     "#SBATCH --output=%x_%j.out\n",
     "#SBATCH --error=%x_%j.err\n",
     "module purge && module load detectron2\n",
@@ -120,10 +123,35 @@ hpc_monitor <- function(target, job_id, remote_base) {
     trimws(result$stdout)
   }
 
+  # Helper function to show error details and abort
+  show_error_and_abort <- function(status) {
+    # Get the actual error output - this is usually most informative
+    err_result <- processx::run("ssh", c(target,
+      paste0("cat ", fs::path(remote_base, paste0("petrographer_train_", job_id, ".err")))),
+      timeout = 30, error_on_status = FALSE)
+
+    if (nchar(err_result$stdout) > 0) {
+      cli::cli_h3("Error output")
+      cli::cli_code(err_result$stdout)
+    }
+
+    # Get exit code for quick diagnosis
+    exit_result <- processx::run("ssh", c(target,
+      paste("sacct -j", job_id, "-n -o ExitCode | tail -n 1")),
+      timeout = 30, error_on_status = FALSE)
+
+    if (nchar(exit_result$stdout) > 0) {
+      exit_code <- trimws(exit_result$stdout)
+      cli::cli_alert_info("Exit code: {exit_code}")
+    }
+
+    cli::cli_abort("Job {.strong {job_id}} failed with status: {.emph {status}}")
+  }
+
   # Check initial status
   current_status <- get_job_status()
   if (current_status %in% c("FAILED", "CANCELLED", "TIMEOUT")) {
-    cli::cli_abort("Job {.strong {job_id}} failed with status: {.emph {current_status}}")
+    show_error_and_abort(current_status)
   }
 
   # Monitor PENDING state with spinner
@@ -138,7 +166,7 @@ hpc_monitor <- function(target, job_id, remote_base) {
 
       if (current_status != "PENDING") break
       if (current_status %in% c("FAILED", "CANCELLED", "TIMEOUT")) {
-        cli::cli_abort("Job {.strong {job_id}} failed with status: {.emph {current_status}}")
+        show_error_and_abort(current_status)
       }
       if (difftime(Sys.time(), start_time, units = "hours") > 8) {
         cli::cli_abort("Job monitoring timeout after 8 hour{?s}")
@@ -158,7 +186,7 @@ hpc_monitor <- function(target, job_id, remote_base) {
 
       if (current_status == "FINISHED") break
       if (current_status %in% c("FAILED", "CANCELLED", "TIMEOUT")) {
-        cli::cli_abort("Job {.strong {job_id}} failed with status: {.emph {current_status}}")
+        show_error_and_abort(current_status)
       }
       if (difftime(Sys.time(), start_time, units = "hours") > 8) {
         cli::cli_abort("Job monitoring timeout after 8 hour{?s}")
@@ -171,15 +199,7 @@ hpc_monitor <- function(target, job_id, remote_base) {
     final <- processx::run("ssh", c(target, paste("sacct -j", job_id, "-n -o State | tail -n 1")), timeout = 30, error_on_status = FALSE)
     status <- trimws(final$stdout)
     if (status != "COMPLETED") {
-      # Show error output
-      err_result <- processx::run("ssh", c(target,
-        paste0("cat ", fs::path(remote_base, paste0("petrographer_train_", job_id, ".err")))),
-        timeout = 30, error_on_status = FALSE)
-      if (nchar(err_result$stdout) > 0) {
-        cli::cli_h3("Error output")
-        cli::cli_code(err_result$stdout)
-      }
-      cli::cli_abort("Job {.strong {job_id}} failed with status: {.emph {status}}")
+      show_error_and_abort(status)
     }
   }
 

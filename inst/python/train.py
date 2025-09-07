@@ -124,4 +124,4 @@ if __name__ == "__main__":
     parser.add_argument("--opts", nargs=argparse.REMAINDER)
     args = parser.parse_args()
 
-    launch(main, 0, num_machines=1, machine_rank=0, dist_url="auto", args=(args,))
+    launch(main, args.num_gpus, num_machines=1, machine_rank=0, dist_url="auto", args=(args,))
