@@ -36,13 +36,26 @@ train_model <- function(data_dir,
   
   cli::cli_h1("Model Training")
   training_mode <- if(is.null(hpc_host)) "Local" else paste0("HPC (", hpc_host, ")")
-  cli::cli_dl(c(
+  cli::cli_h2("Training Configuration")
+  details <- c(
     "Model name" = output_name,
     "Mode" = training_mode,
+    "Data directory" = as.character(fs::path_abs(fs::path_norm(data_dir))),
+    "Local output root" = as.character(fs::path_abs(fs::path_norm(local_output_dir))),
+    "Device" = device,
+    "Classes" = num_classes,
     "Max iterations" = max_iter,
     "Learning rate" = learning_rate,
-    "Classes" = num_classes
-  ))
+    "Eval period" = eval_period,
+    "Checkpoint period" = checkpoint_period
+  )
+  if (!is.null(hpc_host)) {
+    details <- c(details,
+      "HPC host" = hpc_host,
+      "HPC user" = if (is.null(hpc_user) || !nzchar(hpc_user)) Sys.info()["user"] else hpc_user
+    )
+  }
+  cli::cli_dl(details)
 
   start_time <- Sys.time()
 

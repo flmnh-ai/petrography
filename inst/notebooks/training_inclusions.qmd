@@ -2,15 +2,16 @@
 title: "Inclusions Detection Model Training"
 format: html
 params:
-  data_dir: "../../data/processed/inclusions"
+  data_dir: !r here::here("data/processed/inclusions")
   output_name: "inclusions_v2"
   num_classes: 2
   max_iter: 500
   learning_rate: 0.00025
   device: "cuda"
   eval_period: 100
-  hpc_host: "hpg"
+  hpc_host: "hpg.rc.ufl.edu"
   hpc_user: "nicolas.gauthier"
+  hpc_base_dir: "/blue/nicolas.gauthier/nicolas.gauthier"
 ---
 
 Training **inclusions detection** model for petrographic analysis with extended training (4000 iterations).
@@ -23,35 +24,17 @@ library(fs)
 library(here)
 library(petrographer)
 
-# Configuration
-config <- list(
-  data_dir = params$data_dir,
-  output_name = params$output_name,
-  num_classes = params$num_classes,
-  max_iter = params$max_iter,
-  learning_rate = params$learning_rate,
-  device = params$device,
-  eval_period = params$eval_period,
-  hpc_host = if(params$hpc_host == "NULL") NULL else params$hpc_host,
-  hpc_user = params$hpc_user,
-  hpc_base_dir = "/blue/nicolas.gauthier/nicolas.gauthier",
-  rsync_mode = "mirror",
-  dry_run = FALSE
-)
-
-cat("\n=== Training Configuration ===\n")
-for(name in names(config)) {
-  if(name != "hpc_base_dir") {
-    cat(sprintf("%s: %s\n", name, config[[name]]))
-  }
-}
+# Configuration - convert params + add runtime values
+config <- as.list(params)
 ```
 
 ## Training
 
 ```{r training}
-# Validate dataset and train model
+# Validate dataset
 validate_dataset(config$data_dir)
+
+# HPC connection is handled inside train_model via a single ssh session
 
 # Train model
 model_path <- do.call(train_model, config)

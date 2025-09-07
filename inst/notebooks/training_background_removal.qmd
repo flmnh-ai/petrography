@@ -2,14 +2,14 @@
 title: "Background Removal Model Training"
 format: html
 params:
-  data_dir: "../data/processed/background_removal"
+  data_dir: !r here::here("data/processed/background_removal")
   output_name: "background_removal_v2"
   num_classes: 2
   max_iter: 2000
   learning_rate: 0.00025
   device: "cuda"
   eval_period: 100
-  hpc_host: "hpg"
+  hpc_host: "hpg.rc.ufl.edu"
   hpc_user: "nicolas.gauthier"
 ---
 
@@ -24,35 +24,16 @@ library(here)
 library(petrographer)
 
 # Configuration
-config <- list(
-  data_dir = params$data_dir,
-  output_name = params$output_name,
-  num_classes = params$num_classes,
-  max_iter = params$max_iter,
-  learning_rate = params$learning_rate,
-  device = params$device,
-  eval_period = params$eval_period,
-  hpc_host = if(params$hpc_host == "NULL") NULL else params$hpc_host,
-  hpc_user = params$hpc_user,
-  hpc_base_dir = "/blue/nicolas.gauthier/nicolas.gauthier",
-  # Optional: keep remote data tidy on reruns
-  rsync_mode = "mirror",
-  dry_run = FALSE
-)
-
-cat("\n=== Training Configuration ===\n")
-for(name in names(config)) {
-  if(name != "hpc_base_dir") {
-    cat(sprintf("%s: %s\n", name, config[[name]]))
-  }
-}
+config <- list(params)
 ```
 
 ## Training
 
 ```{r training}
-# Validate dataset and train model
+# Validate dataset
 validate_dataset(config$data_dir)
+
+# HPC connection is handled inside train_model via a single ssh session
 
 # Train model
 model_path <- do.call(train_model, config)
