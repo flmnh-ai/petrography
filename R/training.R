@@ -189,18 +189,16 @@ train_model_hpc <- function(data_dir, output_name, max_iter, learning_rate, num_
     "--device", "cuda"
   )
 
-  # Execute HPC workflow
-  cli::cli_alert_info("Connecting to HPC: {hpc_host}")
-  session <- hpc_session(hpc_host, hpc_user)
+  # Execute HPC workflow with SSH multiplexing
+  target <- hpc_authenticate(hpc_host, hpc_user)
   
   cli::cli_alert_info("Uploading data and submitting job...")
-  job_info <- hpc_sync_and_submit(session, data_dir, hpc_base_dir, output_name, training_params)
+  job_info <- hpc_sync_and_submit(target, data_dir, hpc_base_dir, output_name, training_params)
   
-  hpc_monitor(session, job_info$job_id, job_info$remote_base)
+  hpc_monitor(target, job_info$job_id, job_info$remote_base)
   
-  result <- hpc_download(session, job_info$remote_base, output_name, local_output_dir)
+  result <- hpc_download(target, job_info$remote_base, output_name, local_output_dir)
   
-  ssh::ssh_disconnect(session)
   cli::cli_alert_success("HPC training pipeline completed!")
   
   return(result)

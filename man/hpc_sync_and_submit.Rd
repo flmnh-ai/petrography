@@ -5,7 +5,7 @@
 \title{Upload data/code and submit SLURM job}
 \usage{
 hpc_sync_and_submit(
-  session,
+  target,
   data_dir,
   hpc_base_dir,
   output_name,

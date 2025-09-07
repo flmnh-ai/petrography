@@ -29,14 +29,15 @@ Quick start (HPC)
 ```
 library(petrographer)
 
-# Optional: preflight check
-check_hpc(hpc_host = "hpg", hpc_user = "your_user")
+## Tip
+# Ensure you can SSH to the cluster once in a terminal first:
+#   ssh your_user@hpg.rc.ufl.edu
 
-# Stage with dry-run first, then mirror for clean reruns
+# Example run
 model_dir <- train_model(
   data_dir = "data/processed/shell_mixed",
   output_name = "shell_detector_v3",
-  hpc_host = "hpg",
+  hpc_host = "hpg.rc.ufl.edu",
   hpc_user = "your_user",
   hpc_base_dir = "/blue/your_lab/your_user",
   dry_run = TRUE
@@ -46,7 +47,7 @@ model_dir <- train_model(
 model_dir <- train_model(
   data_dir = "data/processed/shell_mixed",
   output_name = "shell_detector_v3",
-  hpc_host = "hpg",
+  hpc_host = "hpg.rc.ufl.edu",
   hpc_user = "your_user",
   hpc_base_dir = "/blue/your_lab/your_user",
   rsync_mode = "mirror"
@@ -142,7 +143,7 @@ model_path <- train_model(
   output_name = "inclusions_v2",
   max_iter = 4000,
   num_classes = 2,
-  hpc_host = "hpg",
+  hpc_host = "hpg.rc.ufl.edu",
   hpc_user = "your.username",
   hpc_base_dir = "/blue/your.group/your.username"
 )
@@ -235,7 +236,7 @@ Optimize for your data:
 
 ### HPC Configuration
 For SLURM training:
-- `hpc_host`: SSH hostname (e.g., "hpg")  
+- `hpc_host`: SSH hostname (e.g., "hpg.rc.ufl.edu")  
 - `hpc_user`: Your username
 - `hpc_base_dir`: Remote working directory
 - Automatic file sync and job monitoring

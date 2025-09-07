@@ -4,7 +4,7 @@
 \alias{hpc_monitor}
 \title{Monitor SLURM job until completion}
 \usage{
-hpc_monitor(session, job_id, remote_base)
+hpc_monitor(target, job_id, remote_base)
 }
 \description{
 Monitor SLURM job until completion

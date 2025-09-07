@@ -4,7 +4,7 @@
 \alias{hpc_download}
 \title{Download trained model from HPC}
 \usage{
-hpc_download(session, remote_base, output_name, local_output_dir)
+hpc_download(target, remote_base, output_name, local_output_dir)
 }
 \description{
 Download trained model from HPC
