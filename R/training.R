@@ -96,8 +96,8 @@ train_model <- function(data_dir,
                           hpc_host, hpc_user, hpc_base_dir, local_output_dir)
   }
   
-  duration <- difftime(Sys.time(), start_time, units = "mins")
-  cli::cli_alert_success("Training completed in {round(duration, 1)} minutes")
+  duration_mins <- round(as.numeric(difftime(Sys.time(), start_time, units = "mins")), 1)
+  cli::cli_alert_success("Training completed in {duration_mins} minute{?s}")
   cli::cli_alert_info("Model saved to: {.path {result}}")
   
   return(result)

@@ -9,8 +9,9 @@ params:
   learning_rate: 0.00025
   device: "cuda"
   eval_period: 100
-  hpc_host: "hpg.rc.ufl.edu"
-  hpc_user: "nicolas.gauthier"
+  hpc_host: "hpg"
+  hpc_base_dir: "/blue/nicolas.gauthier/nicolas.gauthier"
+  local_output_dir: !r here::here("Detectron2_Models")
 ---
 
 Training **background removal** model for petrographic analysis.

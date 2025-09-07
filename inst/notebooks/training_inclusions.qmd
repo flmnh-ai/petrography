@@ -9,9 +9,9 @@ params:
   learning_rate: 0.00025
   device: "cuda"
   eval_period: 100
-  hpc_host: "hpg.rc.ufl.edu"
-  hpc_user: "nicolas.gauthier"
+  hpc_host: "hpg"
   hpc_base_dir: "/blue/nicolas.gauthier/nicolas.gauthier"
+  local_output_dir: !r here::here("Detectron2_Models")
 ---
 
 Training **inclusions detection** model for petrographic analysis with extended training (4000 iterations).
@@ -24,7 +24,7 @@ library(fs)
 library(here)
 library(petrographer)
 
-# Configuration - convert params + add runtime values
+# Configuration - convert params
 config <- as.list(params)
 ```
 
@@ -51,39 +51,30 @@ summary_stats <- eval_result$summary
 ## Visualization
 
 ```{r plots, fig.width=10, fig.height=6}
-if (nrow(eval_result$training_data) > 0) {
-  # Simple training curves
-  training_df <- eval_result$training_data
+# Simple training curves
+training_df <- eval_result$training_data
   
   # Loss plot
-  loss_plot <- training_df |>
-    select(iteration, contains("loss")) |>
-    pivot_longer(-iteration, names_to = "loss_type", values_to = "loss") |>
-    filter(!is.na(loss)) |>
-    ggplot(aes(iteration, loss, color = loss_type)) +
+training_df |>
+  select(iteration, contains("loss")) |>
+  pivot_longer(-iteration, names_to = "loss_type", values_to = "loss") |>
+  filter(!is.na(loss)) |>
+  ggplot(aes(iteration, loss, color = loss_type)) +
+  geom_line() +
+  facet_wrap(~loss_type, scales = "free_y") +
+  labs(title = glue::glue("Training Loss - {config$output_name}")) +
+  theme_minimal() +
+  theme(legend.position = "none")
+  
+eval_result$validation_data |>
+    pivot_longer(-iteration, names_to = "metric", values_to = "value") |>
+    filter(!is.na(value)) |>
+    ggplot(aes(iteration, value)) +
     geom_line() +
-    facet_wrap(~loss_type, scales = "free_y") +
-    labs(title = glue::glue("Training Loss - {config$output_name}")) +
-    theme_minimal() +
-    theme(legend.position = "none")
-  
-  print(loss_plot)
-  
-  # Validation metrics if available
-  if ("validation_data" %in% names(eval_result) && nrow(eval_result$validation_data) > 0) {
-    val_plot <- eval_result$validation_data |>
-      pivot_longer(-iteration, names_to = "metric", values_to = "value") |>
-      filter(!is.na(value)) |>
-      ggplot(aes(iteration, value)) +
-      geom_line() +
-      geom_point(size = 0.5) +
-      facet_wrap(~metric, scales = "free_y") +
-      labs(title = glue::glue("Validation Metrics - {config$output_name}")) +
-      theme_minimal()
-    
-    print(val_plot)
-  }
-}
+    geom_point(size = 0.5) +
+    facet_wrap(~metric, scales = "free_y") +
+    labs(title = glue::glue("Validation Metrics - {config$output_name}")) +
+    theme_minimal()
 ```
 
 ## Model Testing
