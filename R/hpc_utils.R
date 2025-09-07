@@ -129,7 +129,10 @@ hpc_monitor <- function(target, job_id, remote_base) {
   if (current_status == "PENDING") {
     cli::cli_progress_step("Job {.strong {job_id}} waiting in queue", spinner = TRUE)
     repeat {
-      Sys.sleep(30)
+      for (i in 1:30) {  # 30 seconds with updates every second
+        cli::cli_progress_update()
+        Sys.sleep(1)
+      }
       current_status <- get_job_status()
       
       if (current_status != "PENDING") break
@@ -146,7 +149,10 @@ hpc_monitor <- function(target, job_id, remote_base) {
   if (current_status == "RUNNING") {
     cli::cli_progress_step("Job {.strong {job_id}} training model", spinner = TRUE)
     repeat {
-      Sys.sleep(30)
+      for (i in 1:30) {  # 30 seconds with updates every second
+        cli::cli_progress_update()
+        Sys.sleep(1)
+      }
       current_status <- get_job_status()
       
       if (current_status == "FINISHED") break
