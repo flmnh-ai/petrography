@@ -113,12 +113,11 @@ sync_code_to_hpc <- function(hpc_host, hpc_user = NULL, remote_session_dir, dry_
 #' Generate and submit SLURM job for training
 #' @keywords internal
 submit_slurm_job <- function(hpc_host, hpc_user = NULL, remote_session_dir, output_name,
-                             max_iter, learning_rate, num_classes, eval_period, checkpoint_period,
-                             profile = list()) {
+                             max_iter, learning_rate, num_classes, eval_period, checkpoint_period) {
   target <- .ssh_target(hpc_host, hpc_user)
 
   # Bootstrap script
-  bootstrap <- generate_bootstrap_script(remote_session_dir, output_name, max_iter, learning_rate, num_classes, eval_period, checkpoint_period, profile)
+  bootstrap <- generate_bootstrap_script(remote_session_dir, output_name, max_iter, learning_rate, num_classes, eval_period, checkpoint_period)
   bootstrap_path <- fs::path(remote_session_dir, "bootstrap.sh")
   tmp_boot <- tempfile(fileext = ".sh")
   writeLines(bootstrap, tmp_boot)
@@ -127,7 +126,7 @@ submit_slurm_job <- function(hpc_host, hpc_user = NULL, remote_session_dir, outp
   if (!identical(res$status, 0L)) cli::cli_abort("Failed to upload bootstrap script: {res$stderr}")
 
   # SLURM wrapper
-  slurm_script <- generate_slurm_wrapper(remote_session_dir, profile)
+  slurm_script <- generate_slurm_wrapper(remote_session_dir)
   script_path <- fs::path(remote_session_dir, "train_job.sh")
   tmp_slurm <- tempfile(fileext = ".sh")
   writeLines(slurm_script, tmp_slurm)
@@ -147,10 +146,10 @@ submit_slurm_job <- function(hpc_host, hpc_user = NULL, remote_session_dir, outp
 
 #' Generate SLURM script content
 #' @keywords internal
-generate_bootstrap_script <- function(remote_session_dir, output_name, max_iter, learning_rate, num_classes, eval_period, checkpoint_period, profile) {
+generate_bootstrap_script <- function(remote_session_dir, output_name, max_iter, learning_rate, num_classes, eval_period, checkpoint_period) {
   data_dir <- fs::path(remote_session_dir, "data")
   output_dir <- fs::path(remote_session_dir, "output")
-  module_lines <- if (!is.null(profile$modules)) profile$modules else c("module purge", "module load detectron2")
+  module_lines <- c("module purge", "module load detectron2")
   c(
     "#!/bin/bash",
     module_lines,
@@ -175,8 +174,9 @@ generate_bootstrap_script <- function(remote_session_dir, output_name, max_iter,
   )
 }
 
-generate_slurm_wrapper <- function(remote_session_dir, profile) {
-  sb <- if (!is.null(profile$sbatch)) profile$sbatch else list(time = "04:00:00", cpus = 4, mem = "24gb", gpus = 1, partition = NULL)
+generate_slurm_wrapper <- function(remote_session_dir) {
+  # Hardcoded SLURM parameters
+  sb <- list(time = "04:00:00", cpus = 4, mem = "24gb", gpus = 1, partition = NULL)
   lines <- c(
     "#!/bin/bash",
     glue::glue("#SBATCH --job-name={.SLURM_JOB_NAME}"),

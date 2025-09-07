@@ -18,7 +18,6 @@
 #' @param poll_interval How often to check job status in seconds (default: 30)
 #' @param max_duration Max seconds to monitor before timing out (default: 8 hours)
 #' @param max_idle Max seconds without output before aborting (default: 30 minutes)
-#' @param hpc_profile Named HPC profile for modules/resources (default: 'hpg')
 #' @param rsync_mode Data sync mode: 'update' (default) or 'mirror' (adds --delete)
 #' @param dry_run If TRUE, rsync runs with -n to preview changes
 #' @return Path to trained model directory
@@ -38,7 +37,6 @@ train_model <- function(data_dir,
                        poll_interval = 30,
                        max_duration = 8*3600,
                        max_idle = 1800,
-                       hpc_profile = "hpg",
                        rsync_mode = c("update", "mirror"),
                        dry_run = FALSE) {
 
@@ -79,7 +77,7 @@ train_model <- function(data_dir,
     rsync_mode <- match.arg(rsync_mode)
     return(train_model_hpc(data_dir, output_name, max_iter, learning_rate, num_classes, eval_period, checkpoint_period,
                           hpc_host, hpc_user, hpc_base_dir, local_output_dir,
-                          poll_interval, max_duration, max_idle, hpc_profile, rsync_mode, dry_run))
+                          poll_interval, max_duration, max_idle, rsync_mode, dry_run))
   }
 }
 
@@ -148,7 +146,7 @@ train_model_local <- function(data_dir, output_name, max_iter, learning_rate, nu
 #' @keywords internal
 train_model_hpc <- function(data_dir, output_name, max_iter, learning_rate, num_classes, eval_period, checkpoint_period,
                            hpc_host, hpc_user, hpc_base_dir, local_output_dir,
-                           poll_interval, max_duration, max_idle, hpc_profile, rsync_mode, dry_run) {
+                           poll_interval, max_duration, max_idle, rsync_mode, dry_run) {
 
   if (is.null(hpc_base_dir)) {
     cli::cli_abort("Missing `hpc_base_dir`: please specify the base path for training files on your HPC system.")
@@ -169,10 +167,8 @@ train_model_hpc <- function(data_dir, output_name, max_iter, learning_rate, num_
 
   # Generate and submit SLURM job
   cli::cli_alert_info("Generating and submitting SLURM job...")
-  profile <- hpc_profile_config(hpc_profile)
   job_id <- submit_slurm_job(hpc_host, hpc_user, remote_session_dir, output_name,
-                            max_iter, learning_rate, num_classes, eval_period, checkpoint_period,
-                            profile = profile)
+                            max_iter, learning_rate, num_classes, eval_period, checkpoint_period)
 
   cli::cli_alert_success("Job submitted with ID: {job_id}")
   cli::cli_alert_info("Monitoring job progress...")
