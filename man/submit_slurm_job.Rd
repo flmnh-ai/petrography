@@ -13,8 +13,7 @@ submit_slurm_job(
   learning_rate,
   num_classes,
   eval_period,
-  checkpoint_period,
-  profile = list()
+  checkpoint_period
 )
 }
 \description{

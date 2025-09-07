@@ -15,9 +15,6 @@
 #' @param hpc_user Username for HPC (default: current user)
 #' @param hpc_base_dir Remote base directory on HPC (default: "~/petrography_training")
 #' @param local_output_dir Local directory to save trained model (default: "Detectron2_Models")
-#' @param poll_interval How often to check job status in seconds (default: 30)
-#' @param max_duration Max seconds to monitor before timing out (default: 8 hours)
-#' @param max_idle Max seconds without output before aborting (default: 30 minutes)
 #' @param rsync_mode Data sync mode: 'update' (default) or 'mirror' (adds --delete)
 #' @param dry_run If TRUE, rsync runs with -n to preview changes
 #' @return Path to trained model directory
@@ -34,9 +31,6 @@ train_model <- function(data_dir,
                        hpc_user = NULL,
                        hpc_base_dir = NULL,
                        local_output_dir = "Detectron2_Models",
-                       poll_interval = 30,
-                       max_duration = 8*3600,
-                       max_idle = 1800,
                        rsync_mode = c("update", "mirror"),
                        dry_run = FALSE) {
 
@@ -77,7 +71,7 @@ train_model <- function(data_dir,
     rsync_mode <- match.arg(rsync_mode)
     return(train_model_hpc(data_dir, output_name, max_iter, learning_rate, num_classes, eval_period, checkpoint_period,
                           hpc_host, hpc_user, hpc_base_dir, local_output_dir,
-                          poll_interval, max_duration, max_idle, rsync_mode, dry_run))
+                          rsync_mode, dry_run))
   }
 }
 
@@ -146,7 +140,7 @@ train_model_local <- function(data_dir, output_name, max_iter, learning_rate, nu
 #' @keywords internal
 train_model_hpc <- function(data_dir, output_name, max_iter, learning_rate, num_classes, eval_period, checkpoint_period,
                            hpc_host, hpc_user, hpc_base_dir, local_output_dir,
-                           poll_interval, max_duration, max_idle, rsync_mode, dry_run) {
+                           rsync_mode, dry_run) {
 
   if (is.null(hpc_base_dir)) {
     cli::cli_abort("Missing `hpc_base_dir`: please specify the base path for training files on your HPC system.")
@@ -174,7 +168,7 @@ train_model_hpc <- function(data_dir, output_name, max_iter, learning_rate, num_
   cli::cli_alert_info("Monitoring job progress...")
 
   # Monitor job (bounded)
-  job_status <- monitor_slurm_job(hpc_host, hpc_user, job_id, poll_interval, remote_session_dir, max_duration, max_idle)
+  job_status <- monitor_slurm_job(hpc_host, hpc_user, job_id, remote_session_dir)
 
   if (job_status != "COMPLETED") {
     cli::cli_abort("Training job failed with status: {job_status}")

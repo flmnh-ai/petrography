@@ -196,12 +196,17 @@ generate_slurm_wrapper <- function(remote_session_dir) {
 
 #' Monitor SLURM job status until completion
 #' @keywords internal
-monitor_slurm_job <- function(hpc_host, hpc_user = NULL, job_id, poll_interval = 30, remote_session_dir, max_duration = 8*3600, max_idle = 1800) {
+monitor_slurm_job <- function(hpc_host, hpc_user = NULL, job_id, remote_session_dir) {
   target <- .ssh_target(hpc_host, hpc_user)
   last_lines <- 0
   t_start <- Sys.time()
   t_last_output <- t_start
   out_file <- fs::path(remote_session_dir, glue::glue("{.SLURM_JOB_NAME}_{job_id}.out"))
+  
+  # Hardcoded timeout values
+  poll_interval <- 30        # 30 seconds between checks
+  max_duration <- 8 * 3600   # 8 hours total timeout  
+  max_idle <- 1800           # 30 minutes without output
 
   repeat {
     if (as.numeric(difftime(Sys.time(), t_start, units = "secs")) > max_duration) {

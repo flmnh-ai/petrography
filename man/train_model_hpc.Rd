@@ -16,11 +16,6 @@ train_model_hpc(
   hpc_user,
   hpc_base_dir,
   local_output_dir,
-  cleanup_remote,
-  poll_interval,
-  max_duration,
-  max_idle,
-  hpc_profile,
   rsync_mode,
   dry_run
 )

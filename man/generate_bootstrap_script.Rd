@@ -11,8 +11,7 @@ generate_bootstrap_script(
   learning_rate,
   num_classes,
   eval_period,
-  checkpoint_period,
-  profile
+  checkpoint_period
 )
 }
 \description{

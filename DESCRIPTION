@@ -21,7 +21,6 @@ Imports:
     cli,
     dplyr,
     fs,
-    future,
     glue,
     processx,
     jsonlite,
@@ -30,7 +29,6 @@ Imports:
     reticulate,
     stringr,
     tibble,
-    tidyr
 Suggests: 
     magick,
     patchwork,

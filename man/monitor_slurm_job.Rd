@@ -4,15 +4,7 @@
 \alias{monitor_slurm_job}
 \title{Monitor SLURM job status until completion}
 \usage{
-monitor_slurm_job(
-  hpc_host,
-  hpc_user = NULL,
-  job_id,
-  poll_interval = 30,
-  remote_session_dir,
-  max_duration = 8 * 3600,
-  max_idle = 1800
-)
+monitor_slurm_job(hpc_host, hpc_user = NULL, job_id, remote_session_dir)
 }
 \description{
 Monitor SLURM job status until completion
