@@ -29,15 +29,37 @@ check_python <- function() {
 #' @export
 check_hpc <- function(hpc_host = "hpg", hpc_user = NULL) {
   cli::cli_h2("HPC Connectivity")
-  ok <- test_ssh_connection(hpc_host, hpc_user)
+  
+  # Test SSH connection using new ssh package approach
+  ok <- tryCatch({
+    session <- hpc_session(hpc_host, hpc_user)
+    result <- ssh::ssh_exec_internal(session, "echo 'connection test'")
+    ssh::ssh_disconnect(session)
+    result$status == 0
+  }, error = function(e) {
+    cli::cli_alert_warning("SSH connection error: {e$message}")
+    FALSE
+  })
+  
   if (isTRUE(ok)) {
     cli::cli_alert_success("SSH reachable and authenticated: {hpc_host}")
   } else {
     cli::cli_alert_danger("SSH check failed for: {hpc_host}")
   }
+  
   # Best-effort info for sbatch (non-fatal)
-  target <- if (!is.null(hpc_user) && nzchar(hpc_user)) paste0(hpc_user, "@", hpc_host) else hpc_host
-  res <- tryCatch({ processx::run("ssh", c(target, "bash", "-lc", "command -v sbatch >/dev/null && echo 'sbatch available' || echo 'sbatch not found'"), error_on_status = FALSE) }, error = function(e) NULL)
-  if (!is.null(res) && nzchar(res$stdout)) cli::cli_alert_info(trimws(res$stdout))
+  if (isTRUE(ok)) {
+    tryCatch({
+      session <- hpc_session(hpc_host, hpc_user)
+      res <- ssh::ssh_exec_internal(session, "command -v sbatch >/dev/null && echo 'sbatch available' || echo 'sbatch not found'")
+      ssh::ssh_disconnect(session)
+      if (res$status == 0 && nzchar(res$stdout)) {
+        cli::cli_alert_info(trimws(res$stdout))
+      }
+    }, error = function(e) {
+      cli::cli_alert_info("Could not check sbatch availability")
+    })
+  }
+  
   invisible(isTRUE(ok))
 }

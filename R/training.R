@@ -79,10 +79,8 @@ train_model <- function(data_dir,
   if (is.null(hpc_host)) {
     result <- train_model_local(data_dir, output_name, max_iter, learning_rate, num_classes, device, eval_period, checkpoint_period, local_output_dir)
   } else {
-    rsync_mode <- match.arg(rsync_mode)
     result <- train_model_hpc(data_dir, output_name, max_iter, learning_rate, num_classes, eval_period, checkpoint_period,
-                          hpc_host, hpc_user, hpc_base_dir, local_output_dir,
-                          rsync_mode, dry_run)
+                          hpc_host, hpc_user, hpc_base_dir, local_output_dir)
   }
   
   duration <- difftime(Sys.time(), start_time, units = "mins")
@@ -156,8 +154,7 @@ train_model_local <- function(data_dir, output_name, max_iter, learning_rate, nu
 #' Train model on HPC using SLURM
 #' @keywords internal
 train_model_hpc <- function(data_dir, output_name, max_iter, learning_rate, num_classes, eval_period, checkpoint_period,
-                           hpc_host, hpc_user, hpc_base_dir, local_output_dir,
-                           rsync_mode, dry_run) {
+                           hpc_host, hpc_user, hpc_base_dir, local_output_dir) {
 
   if (is.null(hpc_base_dir)) {
     cli::cli_abort("Missing `hpc_base_dir`: please specify the base path for training files on your HPC system.")
