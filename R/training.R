@@ -51,9 +51,11 @@ train_model <- function(data_dir,
   )
   if (!is.null(hpc_host)) {
     details <- c(details,
-      "HPC host" = hpc_host,
-      "HPC user" = if (is.null(hpc_user) || !nzchar(hpc_user)) Sys.info()["user"] else hpc_user
+      "HPC host" = hpc_host
     )
+    if (!is.null(hpc_user) && nzchar(hpc_user)) {
+      details <- c(details, "HPC user" = hpc_user)
+    }
   }
   cli::cli_dl(details)
 
