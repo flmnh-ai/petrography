@@ -34,7 +34,10 @@ config <- list(
   eval_period = params$eval_period,
   hpc_host = if(params$hpc_host == "NULL") NULL else params$hpc_host,
   hpc_user = params$hpc_user,
-  hpc_base_dir = "/blue/nicolas.gauthier/nicolas.gauthier"
+  hpc_base_dir = "/blue/nicolas.gauthier/nicolas.gauthier",
+  # Optional: keep remote data tidy on reruns
+  rsync_mode = "mirror",
+  dry_run = FALSE
 )
 
 cli_h1("Training Configuration")
@@ -46,40 +49,21 @@ cli_dl(config[!names(config) %in% c("hpc_base_dir")])
 ```{r training}
 cli_h2("Data Validation")
 
-# Validate and show dataset info
-if (!dir_exists(config$data_dir)) {
-  cli_abort("Data directory not found: {config$data_dir}")
-}
+# Prints a concise summary; aborts if invalid
+validate_dataset(config$data_dir)
 
-train_dir <- path(config$data_dir, "train")
-val_dir <- path(config$data_dir, "val")
-
-train_images <- dir_ls(train_dir, regexp = "\\.(jpg|jpeg|png)$", ignore_case = TRUE)
-val_images <- dir_ls(val_dir, regexp = "\\.(jpg|jpeg|png)$", ignore_case = TRUE)
-
-train_anno <- file_exists(path(train_dir, "_annotations.coco.json"))
-val_anno <- file_exists(path(val_dir, "_annotations.coco.json"))
-
-cli_dl(c(
-  "Train images" = length(train_images),
-  "Val images" = length(val_images), 
-  "Train annotations" = if(train_anno) "✓" else "✗",
-  "Val annotations" = if(val_anno) "✓" else "✗"
-))
-
-# Dataset size
-all_files <- dir_ls(config$data_dir, recurse = TRUE, type = "file")
-dataset_mb <- sum(file_size(all_files), na.rm = TRUE) |> 
-  as.numeric() |> 
-  (\(x) round(x / 1024^2, 1))()
-
-cli_alert_info("Total dataset size: {dataset_mb} MB")
+## size is included in validate_dataset()
 
 cli_h2("Starting Training")
 
 start_time <- Sys.time()
 
-# Train model (handles future/async internally)
+# Optional: quick HPC preflight if using HPC
+if (!is.null(config$hpc_host)) {
+  check_hpc(config$hpc_host, config$hpc_user)
+}
+
+# Train model
 model_path <- do.call(train_model, config)
 
 duration <- difftime(Sys.time(), start_time, units = "mins") |> as.numeric()
@@ -158,7 +142,7 @@ model <- load_model(
 
 # Test on validation sample
 val_images <- dir_ls(path(config$data_dir, "val"), 
-                        regexp = "\\.(jpg|jpeg|png)$", ignore_case = TRUE)
+                        regexp = "(?i)\\.(jpg|jpeg|png)$")
 
 if (length(val_images) > 0) {
   test_image <- val_images[1]

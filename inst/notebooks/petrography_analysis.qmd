@@ -25,19 +25,13 @@ params:
 
 ```{r setup, message=FALSE}
 library(magick)
-library(reticulate) 
 library(tidyverse)
 library(scico)
 library(patchwork)
 library(glue)
 library(cli)
 library(fs)
-
-# Load our package functions
-source("R/model.R")
-source("R/prediction.R") 
-source("R/data_utils.R")
-source("R/summary.R")
+library(petrographer)
 
 # Configuration
 config <- list(
@@ -283,8 +277,7 @@ dir_create(temp_batch_dir)
 
 # Find and copy first few images for demo
 all_images <- dir_ls(config$batch_input_dir, 
-                    regexp = "\\.(jpg|jpeg|png|tiff|tif)$", 
-                    ignore_case = TRUE)
+                    regexp = "(?i)\\.(jpg|jpeg|png|tiff|tif)$")
 
 # Copy first 5 images to temp directory
 demo_images <- head(all_images, 5)

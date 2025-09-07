@@ -14,10 +14,10 @@ validate_coco_dataset <- function(data_dir) {
   val_ok <- fs::dir_exists(val_dir)
   train_anno <- fs::file_exists(fs::path(train_dir, "_annotations.coco.json"))
   val_anno <- fs::file_exists(fs::path(val_dir, "_annotations.coco.json"))
-  train_images <- if (train_ok) length(fs::dir_ls(train_dir, regexp = "\\.(jpg|jpeg|png)$", ignore_case = TRUE)) else 0
-  val_images <- if (val_ok) length(fs::dir_ls(val_dir, regexp = "\\.(jpg|jpeg|png)$", ignore_case = TRUE)) else 0
+  train_images <- if (train_ok) length(fs::dir_ls(train_dir, regexp = "(?i)\\.(jpg|jpeg|png)$")) else 0
+  val_images <- if (val_ok) length(fs::dir_ls(val_dir, regexp = "(?i)\\.(jpg|jpeg|png)$")) else 0
 
-  list(
+  res <- list(
     data_dir = data_dir,
     train_dir_exists = train_ok,
     val_dir_exists = val_ok,
@@ -27,6 +27,33 @@ validate_coco_dataset <- function(data_dir) {
     val_images = val_images,
     valid = train_ok && val_ok && train_anno && val_anno && (train_images + val_images) > 0
   )
+  class(res) <- c("CocoValidation", class(res))
+  if (!res$valid) {
+    # Print a concise summary then abort
+    print(res)
+    cli::cli_abort("Dataset validation failed")
+  }
+  res
+}
+
+#' Validate dataset and compute total size
+#' @param data_dir Directory containing the dataset (expects 'train' and 'val')
+#' @return A list with validation flags, counts, and size metrics
+#' @export
+validate_dataset <- function(data_dir) {
+  # Reuse coco validation (prints only when autoprinted; aborts if invalid)
+  val <- validate_coco_dataset(data_dir)
+
+  # Compute total size (bytes and MB)
+  files <- fs::dir_ls(val$data_dir, recurse = TRUE, type = "file")
+  total_bytes <- sum(fs::file_size(files), na.rm = TRUE)
+  total_mb <- as.numeric(total_bytes) / (1024^2)
+
+  out <- val
+  out$size_bytes <- as.numeric(total_bytes)
+  out$size_mb <- round(total_mb, 1)
+  class(out) <- c("DatasetValidation", class(out))
+  out
 }
 
 #' Summarize a dataset directory
@@ -36,16 +63,17 @@ validate_coco_dataset <- function(data_dir) {
 summarize_dataset <- function(data_dir) {
   data_dir <- fs::path_abs(fs::path_norm(data_dir))
   dirs <- c("train", "val")
-  tibble::tibble(
+  out <- tibble::tibble(
     split = dirs,
     images = vapply(dirs, function(d) {
       p <- fs::path(data_dir, d)
       if (!fs::dir_exists(p)) return(0L)
-      length(fs::dir_ls(p, regexp = "\\.(jpg|jpeg|png)$", ignore_case = TRUE))
+      length(fs::dir_ls(p, regexp = "(?i)\\.(jpg|jpeg|png)$"))
     }, integer(1)),
     annotations = vapply(dirs, function(d) {
       fs::file_exists(fs::path(data_dir, d, "_annotations.coco.json"))
     }, logical(1))
   )
+  class(out) <- c("DatasetSummary", class(out))
+  out
 }
-
