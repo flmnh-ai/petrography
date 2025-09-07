@@ -1,17 +1,6 @@
 ---
 title: "Inclusions Detection Model Training"
 format: html
-params:
-  data_dir: !r here::here("data/processed/inclusions")
-  output_name: "inclusions_v2"
-  num_classes: 2
-  max_iter: 500
-  learning_rate: 0.00025
-  device: "cuda"
-  eval_period: 100
-  hpc_host: "hpg"
-  hpc_base_dir: "/blue/nicolas.gauthier/nicolas.gauthier"
-  local_output_dir: !r here::here("Detectron2_Models")
 ---
 
 Training **inclusions detection** model for petrographic analysis with extended training (4000 iterations).
@@ -24,20 +13,20 @@ library(fs)
 library(here)
 library(petrographer)
 
-# Configuration - convert params
-config <- as.list(params)
+# Validate dataset
+validate_dataset(here::here("data/processed/inclusions"))
 ```
 
 ## Training
 
 ```{r training}
-# Validate dataset
-validate_dataset(config$data_dir)
-
-# HPC connection is handled inside train_model via a single ssh session
-
-# Train model
-model_path <- do.call(train_model, config)
+# Train model (HPC settings from .Renviron)
+model_path <- train_model(
+  data_dir = here::here("data/processed/inclusions"),
+  output_name = "inclusions_v2",
+  num_classes = 2,
+  max_iter = 3000  # extended training for inclusions
+)
 ```
 
 ## Evaluation
@@ -62,7 +51,7 @@ training_df |>
   ggplot(aes(iteration, loss, color = loss_type)) +
   geom_line() +
   facet_wrap(~loss_type, scales = "free_y") +
-  labs(title = glue::glue("Training Loss - {config$output_name}")) +
+  labs(title = "Training Loss - inclusions_v2") +
   theme_minimal() +
   theme(legend.position = "none")
   
@@ -73,7 +62,7 @@ eval_result$validation_data |>
     geom_line() +
     geom_point(size = 0.5) +
     facet_wrap(~metric, scales = "free_y") +
-    labs(title = glue::glue("Validation Metrics - {config$output_name}")) +
+    labs(title = "Validation Metrics - inclusions_v2") +
     theme_minimal()
 ```
 
@@ -86,11 +75,11 @@ cat("\n== Testing Model ==\n")
 model <- load_model(
   model_path = path(model_path, "model_final.pth"),
   config_path = path(model_path, "config.yaml"),
-  device = config$device
+  device = "cuda"
 )
 
 # Test on validation sample
-val_images <- dir_ls(path(config$data_dir, "val"), 
+val_images <- dir_ls(path(here::here("data/processed/inclusions"), "val"), 
                         regexp = "(?i)\\.(jpg|jpeg|png)$")
 
 test_image <- val_images[1]
@@ -98,7 +87,7 @@ test_image <- val_images[1]
 test_result <- predict_image(
   image_path = test_image,
   model = model,
-  output_dir = here::here("results", paste0(config$output_name, "_test"))
+  output_dir = here::here("results", "inclusions_v2_test")
 )
 
 cat(sprintf("Test image: %s\n", path_file(test_image)))
@@ -108,7 +97,7 @@ cat(sprintf("Mean confidence: %.3f\n", mean(test_result$confidence)))
 
 ```{r}
 library(magick)
-list.files(here::here("results", paste0(config$output_name, "_test")), full.names = TRUE)[[1]] |>
+list.files(here::here("results", "inclusions_v2_test"), full.names = TRUE)[[1]] |>
 image_read() |>
   plot()
 ```

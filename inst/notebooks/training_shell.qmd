@@ -1,17 +1,6 @@
 ---
 title: "Shell Detection Model Training"
 format: html
-params:
-  data_dir: !r here::here("data/processed/shell_mixed")
-  output_name: "shell_detector_v3"
-  num_classes: 5
-  max_iter: 2000
-  learning_rate: 0.00025
-  device: "cuda"
-  eval_period: 100
-  hpc_host: "hpg"
-  hpc_base_dir: "/blue/nicolas.gauthier/nicolas.gauthier"
-  local_output_dir: !r here::here("Detectron2_Models")
 ---
 
 Training **shell detection** model for petrographic analysis with 5 object classes.
@@ -24,20 +13,20 @@ library(fs)
 library(here)
 library(petrographer)
 
-# Configuration
-config <- list(params)
+# Validate dataset
+validate_dataset(here::here("data/processed/shell_mixed"))
 ```
 
 ## Training
 
 ```{r training}
-# Validate dataset
-validate_dataset(config$data_dir)
-
-# HPC connection is handled inside train_model via a single ssh session
-
-# Train model
-model_path <- do.call(train_model, config)
+# Train model (HPC settings from .Renviron)
+model_path <- train_model(
+  data_dir = here::here("data/processed/shell_mixed"),
+  output_name = "shell_detector_v3",
+  num_classes = 5
+  # Uses defaults: max_iter=2000, learning_rate=0.00025, device="cuda", eval_period=100
+)
 ```
 
 ## Evaluation
@@ -63,7 +52,7 @@ if (nrow(eval_result$training_data) > 0) {
     ggplot(aes(iteration, loss, color = loss_type)) +
     geom_line() +
     facet_wrap(~loss_type, scales = "free_y") +
-    labs(title = glue::glue("Training Loss - {config$output_name}")) +
+    labs(title = "Training Loss - shell_detector_v3") +
     theme_minimal() +
     theme(legend.position = "none")
   
@@ -78,7 +67,7 @@ if (nrow(eval_result$training_data) > 0) {
       geom_line() +
       geom_point(size = 0.5) +
       facet_wrap(~metric, scales = "free_y") +
-      labs(title = glue::glue("Validation Metrics - {config$output_name}")) +
+      labs(title = "Validation Metrics - shell_detector_v3") +
       theme_minimal()
     
     print(val_plot)
@@ -95,11 +84,11 @@ cat("\n== Testing Model ==\n")
 model <- load_model(
   model_path = path(model_path, "model_final.pth"),
   config_path = path(model_path, "config.yaml"),
-  device = config$device
+  device = "cuda"
 )
 
 # Test on validation sample
-val_images <- dir_ls(path(config$data_dir, "val"), 
+val_images <- dir_ls(path(here::here("data/processed/shell_mixed"), "val"), 
                         regexp = "(?i)\\.(jpg|jpeg|png)$")
 
 if (length(val_images) > 0) {
@@ -108,7 +97,7 @@ if (length(val_images) > 0) {
   test_result <- predict_image(
     image_path = test_image,
     model = model,
-    output_dir = here::here("results", paste0(config$output_name, "_test"))
+    output_dir = here::here("results", "shell_detector_v3_test")
   )
   
   cat(sprintf("Test image: %s\n", path_file(test_image)))

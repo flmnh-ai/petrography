@@ -4,38 +4,36 @@
 
 #' Train a new petrography detection model
 #' @param data_dir Local directory containing train and val subdirectories with COCO annotations
-#' @param output_name Name for the trained model (default: "petrography_model")
-#' @param max_iter Maximum training iterations (default: 5000)
-#' @param learning_rate Learning rate for training (default: 0.001)
-#' @param num_classes Number of object classes (default: 5)
-#' @param device Device for local training: 'cpu', 'cuda', 'mps' (default: 'cpu')
-#' @param eval_period Validation evaluation frequency in iterations (default: 500)
+#' @param output_name Name for the trained model (required)
+#' @param max_iter Maximum training iterations (default: 2000)
+#' @param learning_rate Learning rate for training (default: 0.00025)
+#' @param num_classes Number of object classes (required)
+#' @param device Device for local training: 'cpu', 'cuda', 'mps' (default: 'cuda')
+#' @param eval_period Validation evaluation frequency in iterations (default: 100)
 #' @param checkpoint_period Checkpoint saving frequency (0=final only, >0=every N iterations, default: 0)
-#' @param hpc_host SSH hostname for HPC training (NULL for local training)
-#' @param hpc_user Username for HPC (default: current user)
-#' @param hpc_base_dir Remote base directory on HPC (default: "~/petrography_training")
+#' @param hpc_host SSH hostname for HPC training (default: PETROGRAPHER_HPC_HOST env var, or "" for local training)
+#' @param hpc_user Username for HPC (default: NULL)
+#' @param hpc_base_dir Remote base directory on HPC (default: PETROGRAPHER_HPC_BASE_DIR env var)
 #' @param local_output_dir Local directory to save trained model (default: "Detectron2_Models")
 #' @param rsync_mode Data sync mode: 'update' (default) or 'mirror' (adds --delete)
-#' @param dry_run If TRUE, rsync runs with -n to preview changes
 #' @return Path to trained model directory
 #' @export
 train_model <- function(data_dir,
-                       output_name = "petrography_model",
-                       max_iter = 5000,
-                       learning_rate = 0.001,
-                       num_classes = 5,
-                       device = "cpu",
-                       eval_period = 500,
+                       output_name,
+                       num_classes,
+                       max_iter = 2000,
+                       learning_rate = 0.00025,
+                       device = "cuda",
+                       eval_period = 100,
                        checkpoint_period = 0,
-                       hpc_host = NULL,
+                       hpc_host = Sys.getenv("PETROGRAPHER_HPC_HOST", ""),
                        hpc_user = NULL,
-                       hpc_base_dir = NULL,
+                       hpc_base_dir = Sys.getenv("PETROGRAPHER_HPC_BASE_DIR", ""),
                        local_output_dir = "Detectron2_Models",
-                       rsync_mode = c("update", "mirror"),
-                       dry_run = FALSE) {
+                       rsync_mode = c("update", "mirror")) {
   
   cli::cli_h1("Model Training")
-  training_mode <- if(is.null(hpc_host)) "Local" else paste0("HPC (", hpc_host, ")")
+  training_mode <- if(is.null(hpc_host) || hpc_host == "") "Local" else paste0("HPC (", hpc_host, ")")
   cli::cli_h2("Training Configuration")
   details <- c(
     "Model name" = output_name,
@@ -49,7 +47,7 @@ train_model <- function(data_dir,
     "Eval period" = eval_period,
     "Checkpoint period" = checkpoint_period
   )
-  if (!is.null(hpc_host)) {
+  if (!is.null(hpc_host) && hpc_host != "") {
     details <- c(details,
       "HPC host" = hpc_host
     )
@@ -91,7 +89,7 @@ train_model <- function(data_dir,
   }
 
   # Determine training mode
-  if (is.null(hpc_host)) {
+  if (is.null(hpc_host) || hpc_host == "") {
     result <- train_model_local(data_dir, output_name, max_iter, learning_rate, num_classes, device, eval_period, checkpoint_period, local_output_dir)
   } else {
     result <- train_model_hpc(data_dir, output_name, max_iter, learning_rate, num_classes, eval_period, checkpoint_period,
@@ -171,8 +169,8 @@ train_model_local <- function(data_dir, output_name, max_iter, learning_rate, nu
 train_model_hpc <- function(data_dir, output_name, max_iter, learning_rate, num_classes, eval_period, checkpoint_period,
                            hpc_host, hpc_user, hpc_base_dir, local_output_dir) {
 
-  if (is.null(hpc_base_dir)) {
-    cli::cli_abort("Missing `hpc_base_dir`: please specify the base path for training files on your HPC system.")
+  if (is.null(hpc_base_dir) || hpc_base_dir == "") {
+    cli::cli_abort("Missing `hpc_base_dir`: please specify the base path for training files on your HPC system or set PETROGRAPHER_HPC_BASE_DIR environment variable.")
   }
 
   # Build training parameters

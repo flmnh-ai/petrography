@@ -18,6 +18,7 @@ validate_coco_dataset("data/processed/shell_mixed")
 model_dir <- train_model(
   data_dir = "data/processed/shell_mixed",
   output_name = "shell_detector_v3",
+  num_classes = 5,
   device = "cpu" # or "cuda"/"mps"
 )
 
@@ -26,38 +27,46 @@ evaluate_training(model_dir)
 
 Quick start (HPC)
 
+**Setup**: First configure your HPC defaults in `.Renviron`:
+
+```r
+# Add to your .Renviron file (edit with usethis::edit_r_environ())
+usethis::edit_r_environ()
+
+# Add these lines:
+PETROGRAPHER_HPC_HOST=hpg.rc.ufl.edu
+PETROGRAPHER_HPC_BASE_DIR=/blue/your_lab/your_user
 ```
+
+Then restart R and train:
+
+```r
 library(petrographer)
 
-## Tip
-# Ensure you can SSH to the cluster once in a terminal first:
-#   ssh your_user@hpg.rc.ufl.edu
-
-# Example run
+# HPC settings are read from environment variables
 model_dir <- train_model(
   data_dir = "data/processed/shell_mixed",
   output_name = "shell_detector_v3",
-  hpc_host = "hpg.rc.ufl.edu",
-  hpc_user = "your_user",
-  hpc_base_dir = "/blue/your_lab/your_user",
-  dry_run = TRUE
+  num_classes = 5,
+  hpc_user = "your_user"  # optional if different from system user
 )
+```
 
-# Real run with mirror (keeps remote data tidy)
+**Alternative**: Override environment variables if needed:
+
+```r
 model_dir <- train_model(
-  data_dir = "data/processed/shell_mixed",
+  data_dir = "data/processed/shell_mixed", 
   output_name = "shell_detector_v3",
-  hpc_host = "hpg.rc.ufl.edu",
-  hpc_user = "your_user",
-  hpc_base_dir = "/blue/your_lab/your_user",
-  rsync_mode = "mirror"
+  num_classes = 5,
+  hpc_host = "different.cluster.edu",
+  hpc_base_dir = "/different/path"
 )
 ```
 
 Safety
 
 - No remote deletion is performed automatically.
-- Use `dry_run = TRUE` to preview rsync changes.
 - Use `rsync_mode = "mirror"` to avoid accumulating stale files across reruns.
 
 ### Key Features
