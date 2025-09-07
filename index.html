@@ -71,14 +71,15 @@
 <p>Quick start (HPC)</p>
 <pre><code><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://flmnh-ai.github.io/petrographer/">petrographer</a></span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># Optional: preflight check</span></span>
-<span><span class="fu"><a href="reference/check_hpc.html">check_hpc</a></span><span class="op">(</span>hpc_host <span class="op">=</span> <span class="st">"hpg"</span>, hpc_user <span class="op">=</span> <span class="st">"your_user"</span><span class="op">)</span></span>
+<span><span class="co">## Tip</span></span>
+<span><span class="co"># Ensure you can SSH to the cluster once in a terminal first:</span></span>
+<span><span class="co">#   ssh your_user@hpg.rc.ufl.edu</span></span>
 <span></span>
-<span><span class="co"># Stage with dry-run first, then mirror for clean reruns</span></span>
+<span><span class="co"># Example run</span></span>
 <span><span class="va">model_dir</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/train_model.html">train_model</a></span><span class="op">(</span></span>
 <span>  data_dir <span class="op">=</span> <span class="st">"data/processed/shell_mixed"</span>,</span>
 <span>  output_name <span class="op">=</span> <span class="st">"shell_detector_v3"</span>,</span>
-<span>  hpc_host <span class="op">=</span> <span class="st">"hpg"</span>,</span>
+<span>  hpc_host <span class="op">=</span> <span class="st">"hpg.rc.ufl.edu"</span>,</span>
 <span>  hpc_user <span class="op">=</span> <span class="st">"your_user"</span>,</span>
 <span>  hpc_base_dir <span class="op">=</span> <span class="st">"/blue/your_lab/your_user"</span>,</span>
 <span>  dry_run <span class="op">=</span> <span class="cn">TRUE</span></span>
@@ -88,7 +89,7 @@
 <span><span class="va">model_dir</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/train_model.html">train_model</a></span><span class="op">(</span></span>
 <span>  data_dir <span class="op">=</span> <span class="st">"data/processed/shell_mixed"</span>,</span>
 <span>  output_name <span class="op">=</span> <span class="st">"shell_detector_v3"</span>,</span>
-<span>  hpc_host <span class="op">=</span> <span class="st">"hpg"</span>,</span>
+<span>  hpc_host <span class="op">=</span> <span class="st">"hpg.rc.ufl.edu"</span>,</span>
 <span>  hpc_user <span class="op">=</span> <span class="st">"your_user"</span>,</span>
 <span>  hpc_base_dir <span class="op">=</span> <span class="st">"/blue/your_lab/your_user"</span>,</span>
 <span>  rsync_mode <span class="op">=</span> <span class="st">"mirror"</span></span>
@@ -200,7 +201,7 @@
 <span>  output_name <span class="op">=</span> <span class="st">"inclusions_v2"</span>,</span>
 <span>  max_iter <span class="op">=</span> <span class="fl">4000</span>,</span>
 <span>  num_classes <span class="op">=</span> <span class="fl">2</span>,</span>
-<span>  hpc_host <span class="op">=</span> <span class="st">"hpg"</span>,</span>
+<span>  hpc_host <span class="op">=</span> <span class="st">"hpg.rc.ufl.edu"</span>,</span>
 <span>  hpc_user <span class="op">=</span> <span class="st">"your.username"</span>,</span>
 <span>  hpc_base_dir <span class="op">=</span> <span class="st">"/blue/your.group/your.username"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -333,7 +334,7 @@
 <div class="section level3">
 <h3 id="hpc-configuration">HPC Configuration<a class="anchor" aria-label="anchor" href="#hpc-configuration"></a>
 </h3>
-<p>For SLURM training: - <code>hpc_host</code>: SSH hostname (e.g., “hpg”)<br>
+<p>For SLURM training: - <code>hpc_host</code>: SSH hostname (e.g., “hpg.rc.ufl.edu”)<br>
 - <code>hpc_user</code>: Your username - <code>hpc_base_dir</code>: Remote working directory - Automatic file sync and job monitoring</p>
 </div>
 </div>
