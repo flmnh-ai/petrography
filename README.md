@@ -6,6 +6,59 @@ Automated instance segmentation and morphological analysis of petrographic thin 
 
 This R package provides a complete workflow for training, evaluating, and analyzing petrographic thin section images using Detectron2 with SAHI (Slicing Aided Hyper Inference) for improved detection of small objects. The workflow combines Python-based machine learning with R-based analysis and visualization through a clean, modern interface.
 
+Quick start (local)
+
+```
+library(petrographer)
+
+# Validate dataset
+validate_coco_dataset("data/processed/shell_mixed")
+
+# Train locally
+model_dir <- train_model(
+  data_dir = "data/processed/shell_mixed",
+  output_name = "shell_detector_v3",
+  device = "cpu" # or "cuda"/"mps"
+)
+
+evaluate_training(model_dir)
+```
+
+Quick start (HPC)
+
+```
+library(petrographer)
+
+# Optional: preflight check
+check_hpc(hpc_host = "hpg", hpc_user = "your_user")
+
+# Stage with dry-run first, then mirror for clean reruns
+model_dir <- train_model(
+  data_dir = "data/processed/shell_mixed",
+  output_name = "shell_detector_v3",
+  hpc_host = "hpg",
+  hpc_user = "your_user",
+  hpc_base_dir = "/blue/your_lab/your_user",
+  dry_run = TRUE
+)
+
+# Real run with mirror (keeps remote data tidy)
+model_dir <- train_model(
+  data_dir = "data/processed/shell_mixed",
+  output_name = "shell_detector_v3",
+  hpc_host = "hpg",
+  hpc_user = "your_user",
+  hpc_base_dir = "/blue/your_lab/your_user",
+  rsync_mode = "mirror"
+)
+```
+
+Safety
+
+- No remote deletion is performed automatically.
+- Use `dry_run = TRUE` to preview rsync changes.
+- Use `rsync_mode = "mirror"` to avoid accumulating stale files across reruns.
+
 ### Key Features
 
 - **Advanced Instance Segmentation**: Uses Detectron2 Mask R-CNN with SAHI for high-quality detection

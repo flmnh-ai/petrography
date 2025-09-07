@@ -17,8 +17,13 @@ train_model(
   hpc_user = NULL,
   hpc_base_dir = NULL,
   local_output_dir = "Detectron2_Models",
-  cleanup_remote = TRUE,
-  monitor_interval = 30
+  cleanup_remote = FALSE,
+  poll_interval = 30,
+  max_duration = 8 * 3600,
+  max_idle = 1800,
+  hpc_profile = "hpg",
+  rsync_mode = c("update", "mirror"),
+  dry_run = FALSE
 )
 }
 \arguments{
@@ -46,9 +51,19 @@ train_model(
 
 \item{local_output_dir}{Local directory to save trained model (default: "Detectron2_Models")}
 
-\item{cleanup_remote}{Whether to cleanup remote files after download (default: TRUE)}
+\item{cleanup_remote}{Deprecated; remote cleanup is not performed (kept for compatibility)}
 
-\item{monitor_interval}{How often to check job status in seconds (default: 30)}
+\item{poll_interval}{How often to check job status in seconds (default: 30)}
+
+\item{max_duration}{Max seconds to monitor before timing out (default: 8 hours)}
+
+\item{max_idle}{Max seconds without output before aborting (default: 30 minutes)}
+
+\item{hpc_profile}{Named HPC profile for modules/resources (default: 'hpg')}
+
+\item{rsync_mode}{Data sync mode: 'update' (default) or 'mirror' (adds --delete)}
+
+\item{dry_run}{If TRUE, rsync runs with -n to preview changes}
 }
 \value{
 Path to trained model directory

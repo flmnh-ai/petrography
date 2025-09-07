@@ -4,7 +4,12 @@
 \alias{cleanup_remote_session}
 \title{Clean up remote session directory}
 \usage{
-cleanup_remote_session(hpc_host, hpc_user = NULL, remote_session_dir)
+cleanup_remote_session(
+  hpc_host,
+  hpc_user = NULL,
+  remote_session_dir,
+  hpc_base_dir
+)
 }
 \description{
 Clean up remote session directory

@@ -4,7 +4,14 @@
 \alias{sync_data_to_hpc}
 \title{Sync local data to HPC using rsync}
 \usage{
-sync_data_to_hpc(local_data_dir, hpc_host, hpc_user = NULL, remote_session_dir)
+sync_data_to_hpc(
+  local_data_dir,
+  hpc_host,
+  hpc_user = NULL,
+  remote_session_dir,
+  rsync_mode = c("update", "mirror"),
+  dry_run = FALSE
+)
 }
 \description{
 Sync local data to HPC using rsync

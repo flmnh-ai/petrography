@@ -15,8 +15,13 @@
 #' @param hpc_user Username for HPC (default: current user)
 #' @param hpc_base_dir Remote base directory on HPC (default: "~/petrography_training")
 #' @param local_output_dir Local directory to save trained model (default: "Detectron2_Models")
-#' @param cleanup_remote Whether to cleanup remote files after download (default: TRUE)
-#' @param monitor_interval How often to check job status in seconds (default: 30)
+#' @param cleanup_remote Deprecated; remote cleanup is not performed (kept for compatibility)
+#' @param poll_interval How often to check job status in seconds (default: 30)
+#' @param max_duration Max seconds to monitor before timing out (default: 8 hours)
+#' @param max_idle Max seconds without output before aborting (default: 30 minutes)
+#' @param hpc_profile Named HPC profile for modules/resources (default: 'hpg')
+#' @param rsync_mode Data sync mode: 'update' (default) or 'mirror' (adds --delete)
+#' @param dry_run If TRUE, rsync runs with -n to preview changes
 #' @return Path to trained model directory
 #' @export
 train_model <- function(data_dir,
@@ -31,13 +36,27 @@ train_model <- function(data_dir,
                        hpc_user = NULL,
                        hpc_base_dir = NULL,
                        local_output_dir = "Detectron2_Models",
-                       cleanup_remote = TRUE,
-                       monitor_interval = 30) {
+                       cleanup_remote = FALSE,
+                       poll_interval = 30,
+                       max_duration = 8*3600,
+                       max_idle = 1800,
+                       hpc_profile = "hpg",
+                       rsync_mode = c("update", "mirror"),
+                       dry_run = FALSE) {
 
 
   # Validate inputs
   if (!fs::dir_exists(data_dir)) {
     cli::cli_abort("Data directory not found: {.path {data_dir}}")
+  }
+
+  # Normalize important paths early
+  data_dir <- fs::path_abs(fs::path_norm(data_dir))
+  local_output_dir <- fs::path_abs(fs::path_norm(local_output_dir))
+
+  # Validate output name for safety and portability
+  if (!grepl("^[A-Za-z0-9._-]{1,64}$", output_name)) {
+    cli::cli_abort("Invalid output_name. Use only letters, numbers, ., _, - (max 64 chars)")
   }
 
   train_dir <- fs::path(data_dir, "train")
@@ -59,9 +78,10 @@ train_model <- function(data_dir,
   if (is.null(hpc_host)) {
     return(train_model_local(data_dir, output_name, max_iter, learning_rate, num_classes, device, eval_period, checkpoint_period, local_output_dir))
   } else {
+    rsync_mode <- match.arg(rsync_mode)
     return(train_model_hpc(data_dir, output_name, max_iter, learning_rate, num_classes, eval_period, checkpoint_period,
                           hpc_host, hpc_user, hpc_base_dir, local_output_dir,
-                          cleanup_remote, monitor_interval))
+                          cleanup_remote, poll_interval, max_duration, max_idle, hpc_profile, rsync_mode, dry_run))
   }
 }
 
@@ -130,17 +150,15 @@ train_model_local <- function(data_dir, output_name, max_iter, learning_rate, nu
 #' @keywords internal
 train_model_hpc <- function(data_dir, output_name, max_iter, learning_rate, num_classes, eval_period, checkpoint_period,
                            hpc_host, hpc_user, hpc_base_dir, local_output_dir,
-                           cleanup_remote, monitor_interval) {
+                           cleanup_remote, poll_interval, max_duration, max_idle, hpc_profile, rsync_mode, dry_run) {
 
   if (is.null(hpc_base_dir)) {
     cli::cli_abort("Missing `hpc_base_dir`: please specify the base path for training files on your HPC system.")
   }
 
-  # Check SSH connectivity
-  if (!test_ssh_connection(hpc_host, hpc_user)) {
-    cli::cli_abort("Cannot connect to HPC host: {hpc_host}")
-  }
-
+  # Preflight checks and SSH connectivity
+  preflight_hpc(hpc_host, hpc_user)
+  if (!test_ssh_connection(hpc_host, hpc_user)) cli::cli_abort("Cannot connect to HPC host: {hpc_host}")
   cli::cli_alert_success("Connected to HPC: {hpc_host}")
 
   # Setup remote directories
@@ -148,27 +166,24 @@ train_model_hpc <- function(data_dir, output_name, max_iter, learning_rate, num_
 
   # Sync data to HPC
   cli::cli_alert_info("Syncing data to HPC...")
-  sync_data_to_hpc(data_dir, hpc_host, hpc_user, remote_session_dir)
+  sync_data_to_hpc(data_dir, hpc_host, hpc_user, remote_session_dir, rsync_mode = rsync_mode, dry_run = dry_run)
 
   # Sync code to HPC
   cli::cli_alert_info("Syncing training code to HPC...")
-  sync_code_to_hpc(hpc_host, hpc_user, remote_session_dir)
+  sync_code_to_hpc(hpc_host, hpc_user, remote_session_dir, dry_run = dry_run)
 
   # Generate and submit SLURM job
   cli::cli_alert_info("Generating and submitting SLURM job...")
+  profile <- hpc_profile_config(hpc_profile)
   job_id <- submit_slurm_job(hpc_host, hpc_user, remote_session_dir, output_name,
-                            max_iter, learning_rate, num_classes, eval_period, checkpoint_period)
+                            max_iter, learning_rate, num_classes, eval_period, checkpoint_period,
+                            profile = profile)
 
   cli::cli_alert_success("Job submitted with ID: {job_id}")
   cli::cli_alert_info("Monitoring job progress...")
 
-  # Monitor job using future/mirai
-  future_result <- future::future({
-    monitor_slurm_job(hpc_host, hpc_user, job_id, monitor_interval, remote_session_dir)
-  })
-
-  # Wait for completion
-  job_status <- value(future_result)
+  # Monitor job (bounded)
+  job_status <- monitor_slurm_job(hpc_host, hpc_user, job_id, poll_interval, remote_session_dir, max_duration, max_idle)
 
   if (job_status != "COMPLETED") {
     cli::cli_abort("Training job failed with status: {job_status}")
@@ -181,11 +196,15 @@ train_model_hpc <- function(data_dir, output_name, max_iter, learning_rate, num_
   local_model_dir <- download_trained_model(hpc_host, hpc_user, remote_session_dir,
                                            output_name, local_output_dir)
 
-  # Cleanup remote files if requested
-  if (cleanup_remote) {
-    cli::cli_alert_info("Cleaning up remote files...")
-    cleanup_remote_session(hpc_host, hpc_user, remote_session_dir)
+  # Verify expected artifacts
+  if (!verify_local_artifacts(local_model_dir)) {
+    cli::cli_abort("Trained model artifacts incomplete; leaving remote session intact for inspection")
   }
+
+  # Note: remote cleanup removed by default for safety; use HPC manual cleanup policies
+
+  # Attempt to close SSH ControlMaster
+  close_ssh_connection(hpc_host, hpc_user)
 
   cli::cli_alert_success("HPC training pipeline completed!")
   cli::cli_alert_info("Model saved to: {.path {local_model_dir}}")

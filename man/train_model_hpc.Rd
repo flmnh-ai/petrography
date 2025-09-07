@@ -17,7 +17,12 @@ train_model_hpc(
   hpc_base_dir,
   local_output_dir,
   cleanup_remote,
-  monitor_interval
+  poll_interval,
+  max_duration,
+  max_idle,
+  hpc_profile,
+  rsync_mode,
+  dry_run
 )
 }
 \description{

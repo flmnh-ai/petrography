@@ -4,7 +4,12 @@
 \alias{sync_code_to_hpc}
 \title{Sync training code to HPC}
 \usage{
-sync_code_to_hpc(hpc_host, hpc_user = NULL, remote_session_dir)
+sync_code_to_hpc(
+  hpc_host,
+  hpc_user = NULL,
+  remote_session_dir,
+  dry_run = FALSE
+)
 }
 \description{
 Sync training code to HPC

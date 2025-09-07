@@ -8,8 +8,10 @@ monitor_slurm_job(
   hpc_host,
   hpc_user = NULL,
   job_id,
-  monitor_interval = 30,
-  remote_session_dir
+  poll_interval = 30,
+  remote_session_dir,
+  max_duration = 8 * 3600,
+  max_idle = 1800
 )
 }
 \description{
