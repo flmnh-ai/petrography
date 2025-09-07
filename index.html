@@ -64,40 +64,42 @@
 <span><span class="va">model_dir</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/train_model.html">train_model</a></span><span class="op">(</span></span>
 <span>  data_dir <span class="op">=</span> <span class="st">"data/processed/shell_mixed"</span>,</span>
 <span>  output_name <span class="op">=</span> <span class="st">"shell_detector_v3"</span>,</span>
+<span>  num_classes <span class="op">=</span> <span class="fl">5</span>,</span>
 <span>  device <span class="op">=</span> <span class="st">"cpu"</span> <span class="co"># or "cuda"/"mps"</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="reference/evaluate_training.html">evaluate_training</a></span><span class="op">(</span><span class="va">model_dir</span><span class="op">)</span></span></code></pre>
 <p>Quick start (HPC)</p>
-<pre><code><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://flmnh-ai.github.io/petrographer/">petrographer</a></span><span class="op">)</span></span>
+<p><strong>Setup</strong>: First configure your HPC defaults in <code>.Renviron</code>:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="co"># Add to your .Renviron file (edit with usethis::edit_r_environ())</span></span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>usethis<span class="sc">::</span><span class="fu">edit_r_environ</span>()</span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a><span class="co"># Add these lines:</span></span>
+<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a>PETROGRAPHER_HPC_HOST<span class="ot">=</span>hpg.rc.ufl.edu</span>
+<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a>PETROGRAPHER_HPC_BASE_DIR<span class="ot">=</span><span class="er">/</span>blue<span class="sc">/</span>your_lab<span class="sc">/</span>your_user</span></code></pre></div>
+<p>Then restart R and train:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://flmnh-ai.github.io/petrographer/">petrographer</a></span><span class="op">)</span></span>
 <span></span>
-<span><span class="co">## Tip</span></span>
-<span><span class="co"># Ensure you can SSH to the cluster once in a terminal first:</span></span>
-<span><span class="co">#   ssh your_user@hpg.rc.ufl.edu</span></span>
-<span></span>
-<span><span class="co"># Example run</span></span>
+<span><span class="co"># HPC settings are read from environment variables</span></span>
 <span><span class="va">model_dir</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/train_model.html">train_model</a></span><span class="op">(</span></span>
 <span>  data_dir <span class="op">=</span> <span class="st">"data/processed/shell_mixed"</span>,</span>
 <span>  output_name <span class="op">=</span> <span class="st">"shell_detector_v3"</span>,</span>
-<span>  hpc_host <span class="op">=</span> <span class="st">"hpg.rc.ufl.edu"</span>,</span>
-<span>  hpc_user <span class="op">=</span> <span class="st">"your_user"</span>,</span>
-<span>  hpc_base_dir <span class="op">=</span> <span class="st">"/blue/your_lab/your_user"</span>,</span>
-<span>  dry_run <span class="op">=</span> <span class="cn">TRUE</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Real run with mirror (keeps remote data tidy)</span></span>
-<span><span class="va">model_dir</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/train_model.html">train_model</a></span><span class="op">(</span></span>
-<span>  data_dir <span class="op">=</span> <span class="st">"data/processed/shell_mixed"</span>,</span>
+<span>  num_classes <span class="op">=</span> <span class="fl">5</span>,</span>
+<span>  hpc_user <span class="op">=</span> <span class="st">"your_user"</span>  <span class="co"># optional if different from system user</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p><strong>Alternative</strong>: Override environment variables if needed:</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">model_dir</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/train_model.html">train_model</a></span><span class="op">(</span></span>
+<span>  data_dir <span class="op">=</span> <span class="st">"data/processed/shell_mixed"</span>, </span>
 <span>  output_name <span class="op">=</span> <span class="st">"shell_detector_v3"</span>,</span>
-<span>  hpc_host <span class="op">=</span> <span class="st">"hpg.rc.ufl.edu"</span>,</span>
-<span>  hpc_user <span class="op">=</span> <span class="st">"your_user"</span>,</span>
-<span>  hpc_base_dir <span class="op">=</span> <span class="st">"/blue/your_lab/your_user"</span>,</span>
-<span>  rsync_mode <span class="op">=</span> <span class="st">"mirror"</span></span>
-<span><span class="op">)</span></span></code></pre>
+<span>  num_classes <span class="op">=</span> <span class="fl">5</span>,</span>
+<span>  hpc_host <span class="op">=</span> <span class="st">"different.cluster.edu"</span>,</span>
+<span>  hpc_base_dir <span class="op">=</span> <span class="st">"/different/path"</span></span>
+<span><span class="op">)</span></span></code></pre></div>
 <p>Safety</p>
 <ul>
 <li>No remote deletion is performed automatically.</li>
-<li>Use <code>dry_run = TRUE</code> to preview rsync changes.</li>
 <li>Use <code>rsync_mode = "mirror"</code> to avoid accumulating stale files across reruns.</li>
 </ul>
 <div class="section level3">
@@ -137,7 +139,7 @@
 <div class="section level3">
 <h3 id="r-dependencies">R Dependencies<a class="anchor" aria-label="anchor" href="#r-dependencies"></a>
 </h3>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"reticulate"</span>, <span class="st">"tidyverse"</span>, <span class="st">"magick"</span>, <span class="st">"scico"</span>, </span>
 <span>                   <span class="st">"patchwork"</span>, <span class="st">"glue"</span>, <span class="st">"cli"</span>, <span class="st">"fs"</span>, <span class="st">"future"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -154,7 +156,7 @@
 <div class="section level3">
 <h3 id="id_1-load-the-package-functions">1. Load the Package Functions<a class="anchor" aria-label="anchor" href="#id_1-load-the-package-functions"></a>
 </h3>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Load all package functions</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/source.html" class="external-link">source</a></span><span class="op">(</span><span class="st">"R/model.R"</span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/source.html" class="external-link">source</a></span><span class="op">(</span><span class="st">"R/training.R"</span><span class="op">)</span> </span>
@@ -183,7 +185,7 @@
 <div class="section level4">
 <h4 id="local-training">Local Training<a class="anchor" aria-label="anchor" href="#local-training"></a>
 </h4>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">model_path</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/train_model.html">train_model</a></span><span class="op">(</span></span>
 <span>  data_dir <span class="op">=</span> <span class="st">"data/processed/shell_mixed"</span>,</span>
 <span>  output_name <span class="op">=</span> <span class="st">"shell_detector_v3"</span>,</span>
@@ -195,7 +197,7 @@
 <div class="section level4">
 <h4 id="hpc-training-slurm">HPC Training (SLURM)<a class="anchor" aria-label="anchor" href="#hpc-training-slurm"></a>
 </h4>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">model_path</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/train_model.html">train_model</a></span><span class="op">(</span></span>
 <span>  data_dir <span class="op">=</span> <span class="st">"data/processed/inclusions"</span>, </span>
 <span>  output_name <span class="op">=</span> <span class="st">"inclusions_v2"</span>,</span>
@@ -210,7 +212,7 @@
 <div class="section level3">
 <h3 id="id_4-model-loading-and-prediction">4. Model Loading and Prediction<a class="anchor" aria-label="anchor" href="#id_4-model-loading-and-prediction"></a>
 </h3>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Load trained model (automatically downloads if needed)</span></span>
 <span><span class="va">model</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/load_model.html">load_model</a></span><span class="op">(</span>confidence <span class="op">=</span> <span class="fl">0.5</span>, device <span class="op">=</span> <span class="st">"cpu"</span><span class="op">)</span></span>
 <span></span>
@@ -427,12 +429,12 @@
 <h2 id="citation">Citation<a class="anchor" aria-label="anchor" href="#citation"></a>
 </h2>
 <p>If you use this workflow in your research, please cite:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode bibtex"><code class="sourceCode bibtex"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a><span class="co">@software{petrography_analysis,</span></span>
-<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a><span class="co">  title={Petrographic Image Analysis with Detectron2 and SAHI},</span></span>
-<span id="cb10-3"><a href="#cb10-3" tabindex="-1"></a><span class="co">  author={Nicolas Gauthier},</span></span>
-<span id="cb10-4"><a href="#cb10-4" tabindex="-1"></a><span class="co">  year={2025},</span></span>
-<span id="cb10-5"><a href="#cb10-5" tabindex="-1"></a><span class="co">  url={https://github.com/your-repo/petrography}</span></span>
-<span id="cb10-6"><a href="#cb10-6" tabindex="-1"></a><span class="co">}</span></span></code></pre></div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode bibtex"><code class="sourceCode bibtex"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a><span class="co">@software{petrography_analysis,</span></span>
+<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a><span class="co">  title={Petrographic Image Analysis with Detectron2 and SAHI},</span></span>
+<span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a><span class="co">  author={Nicolas Gauthier},</span></span>
+<span id="cb12-4"><a href="#cb12-4" tabindex="-1"></a><span class="co">  year={2025},</span></span>
+<span id="cb12-5"><a href="#cb12-5" tabindex="-1"></a><span class="co">  url={https://github.com/your-repo/petrography}</span></span>
+<span id="cb12-6"><a href="#cb12-6" tabindex="-1"></a><span class="co">}</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="acknowledgments">Acknowledgments<a class="anchor" aria-label="anchor" href="#acknowledgments"></a>
