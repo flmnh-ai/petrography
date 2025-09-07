@@ -42,7 +42,9 @@ preflight_hpc <- function(hpc_host, hpc_user = NULL) {
     cli::cli_abort("SSH to {target} failed")
   if (!identical(.run_cmd("ssh", c(target, "rsync --version"), timeout = 15)$status, 0L))
     cli::cli_abort("Remote rsync not available on {target}")
-  if (!identical(.run_cmd("ssh", c(target, shQuote("which squeue && which sbatch && which sacct")), timeout = 20)$status, 0L))
+  # Use a login shell so site profiles are sourced (ensures SLURM in PATH)
+  slurm_check <- .run_cmd("ssh", c(target, "bash", "-lc", shQuote("command -v squeue >/dev/null && command -v sbatch >/dev/null && command -v sacct >/dev/null")), timeout = 20)
+  if (!identical(slurm_check$status, 0L))
     cli::cli_abort("SLURM commands not available on {target}")
   invisible(TRUE)
 }

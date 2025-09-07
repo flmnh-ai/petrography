@@ -156,8 +156,7 @@ train_model_hpc <- function(data_dir, output_name, max_iter, learning_rate, num_
     cli::cli_abort("Missing `hpc_base_dir`: please specify the base path for training files on your HPC system.")
   }
 
-  # Preflight checks and SSH connectivity
-  preflight_hpc(hpc_host, hpc_user)
+  # Minimal SSH connectivity (prompts Duo once)
   if (!test_ssh_connection(hpc_host, hpc_user)) cli::cli_abort("Cannot connect to HPC host: {hpc_host}")
   cli::cli_alert_success("Connected to HPC: {hpc_host}")
 
