@@ -92,8 +92,14 @@ hpc_sync_and_submit <- function(target, data_dir, hpc_base_dir, output_name, tra
   cpus <- if (gpus > 1) gpus * 4 else 4
   mem <- if (gpus > 1) paste0(gpus * 16, "gb") else "16gb"
 
-  # Optional environment/preamble lines
-  preamble <- ""
+  # Environment/preamble lines
+  # Default to your exact conda activation sequence
+  preamble_lines <- c(
+    "module purge",
+    "module load conda",
+    "conda activate /blue/nicolas.gauthier/share/conda/envs/petrographer"
+  )
+  preamble <- paste0(paste(preamble_lines, collapse = "\n"), "\n")
   if (!is.null(hpc_env) && length(hpc_env) > 0) {
     preamble <- paste(paste(hpc_env, collapse = "\n"), "\n", sep = "")
   }
