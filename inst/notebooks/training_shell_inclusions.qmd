@@ -27,7 +27,9 @@ model_path <- train_model(
   data_dir = data_dir,
   output_name = "shell_inclusions_v1",
   num_classes = 3,
-  max_iter = 3000  # extended training for inclusions
+  gpus = 3,
+  ims_per_batch = 6,
+  max_iter = 200
 )
 ```
 

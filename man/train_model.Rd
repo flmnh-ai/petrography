@@ -31,7 +31,10 @@ train_model(
   hpc_user = NULL,
   hpc_base_dir = Sys.getenv("PETROGRAPHER_HPC_BASE_DIR", ""),
   local_output_dir = here::here("Detectron2_Models"),
-  rsync_mode = c("update", "mirror")
+  rsync_mode = c("update", "mirror"),
+  publish_after_train = FALSE,
+  model_board = NULL,
+  model_description = NULL
 )
 }
 \arguments{
@@ -43,7 +46,7 @@ train_model(
 
 \item{max_iter}{Maximum training iterations (default: 2000)}
 
-\item{learning_rate}{Base learning rate before auto-scaling (default: 0.00025)}
+\item{learning_rate}{Base learning rate before auto-scaling (default: 0.0025)}
 
 \item{device}{Device for local training: 'cpu', 'cuda', 'mps' (default: 'cuda')}
 
@@ -58,8 +61,7 @@ uses 2 images per GPU (global batch = 2 * gpus).}
 (effective LR = learning_rate * gpus). Set FALSE to use learning_rate as-is.
 (default: TRUE)}
 
-\item{num_workers}{DataLoader workers per process/GPU. If NULL (default), uses 4 on HPC
-(per GPU) and min(4, max(1, parallel::detectCores(logical = FALSE) - 1)) locally.}
+\item{num_workers}{DataLoader workers per process/GPU. If NULL (default), sets to per-GPU batch size (IMS\_PER\_BATCH/gpus).}
 
 \item{freeze_at}{Backbone freeze level: 0 (none), 2 (default small-data), 3 (freeze more)}
 
@@ -79,6 +81,8 @@ uses 2 images per GPU (global batch = 2 * gpus).}
 
 \item{step_milestones}{Explicit milestone iters vector (overrides step_milestones_frac if provided)}
 
+\item{classwise}{Log per-class AP metrics during validation if supported by your Detectron2 version (default: FALSE)}
+
 \item{gpus}{Number of GPUs for HPC training (default: 1, ignored for local training)}
 
 \item{hpc_host}{SSH hostname for HPC training (default: PETROGRAPHER_HPC_HOST env var, or "" for local training)}
@@ -90,6 +94,12 @@ uses 2 images per GPU (global batch = 2 * gpus).}
 \item{local_output_dir}{Local directory to save trained model (default: "Detectron2_Models")}
 
 \item{rsync_mode}{Data sync mode: 'update' (default) or 'mirror' (adds --delete)}
+
+\item{publish_after_train}{Whether to publish (pin) the trained model to a board (default: FALSE)}
+
+\item{model_board}{pins board for model storage (if NULL and publish\_after\_train=TRUE, uses pg\_board())}
+
+\item{model_description}{Description to include with the pinned model}
 }
 \value{
 Path to trained model directory

@@ -6,7 +6,7 @@
 #' @param data_dir Local directory containing train and val subdirectories with COCO annotations
 #' @param output_name Name for the trained model (required)
 #' @param max_iter Maximum training iterations (default: 2000)
-#' @param learning_rate Base learning rate before auto-scaling (default: 0.00025)
+#' @param learning_rate Base learning rate before auto-scaling (default: 0.0025)
 #' @param num_classes Number of object classes (required)
 #' @param device Device for local training: 'cpu', 'cuda', 'mps' (default: 'cuda')
 #' @param eval_period Validation evaluation frequency in iterations (default: 100)
@@ -16,8 +16,7 @@
 #' @param auto_scale_lr Automatically scale learning rate by number of GPUs
 #'   (effective LR = learning_rate * gpus). Set FALSE to use learning_rate as-is.
 #'   (default: TRUE)
-#' @param num_workers DataLoader workers per process/GPU. If NULL (default), uses 4 on HPC
-#'   (per GPU) and min(4, max(1, parallel::detectCores(logical = FALSE) - 1)) locally.
+#' @param num_workers DataLoader workers per process/GPU. If NULL (default), sets to per-GPU batch size (IMS_PER_BATCH/gpus).
 #' @param freeze_at Backbone freeze level: 0 (none), 2 (default small-data), 3 (freeze more)
 #' @param optimizer Optimizer to use: 'SGD' or 'AdamW' (default: 'SGD')
 #' @param weight_decay Weight decay (L2/AdamW). If NULL, default is 1e-4 for SGD and 0.05 for AdamW
@@ -33,6 +32,9 @@
 #' @param hpc_base_dir Remote base directory on HPC (default: PETROGRAPHER_HPC_BASE_DIR env var)
 #' @param local_output_dir Local directory to save trained model (default: "Detectron2_Models")
 #' @param rsync_mode Data sync mode: 'update' (default) or 'mirror' (adds --delete)
+#' @param publish_after_train Whether to publish (pin) the trained model to a board (default: FALSE)
+#' @param model_board pins board for model storage (if NULL and publish_after_train=TRUE, uses pg_board())
+#' @param model_description Description for pinned model
 #' @return Path to trained model directory
 #' @export
 train_model <- function(data_dir,
@@ -61,7 +63,10 @@ train_model <- function(data_dir,
                        hpc_user = NULL,
                        hpc_base_dir = Sys.getenv("PETROGRAPHER_HPC_BASE_DIR", ""),
                        local_output_dir = here::here("Detectron2_Models"),
-                       rsync_mode = c("update", "mirror")) {
+                       rsync_mode = c("update", "mirror"),
+                       publish_after_train = FALSE,
+                       model_board = NULL,
+                       model_description = NULL) {
 
   cli::cli_h1("Model Training")
   training_mode <- if(is.null(hpc_host) || hpc_host == "") "Local" else paste0("HPC (", hpc_host, ")")
@@ -203,6 +208,49 @@ train_model <- function(data_dir,
   duration_mins <- round(as.numeric(difftime(Sys.time(), start_time, units = "mins")), 1)
   cli::cli_alert_success("Training completed in {duration_mins} minute{?s}")
   cli::cli_alert_info("Model saved to: {.path {result}}")
+
+  # Pin model if requested
+  if (publish_after_train) {
+    cli::cli_h2("Model Publishing")
+    
+    # Create metadata with training parameters
+    training_metadata <- list(
+      data_dir = as.character(data_dir),
+      num_classes = num_classes,
+      max_iter = max_iter,
+      learning_rate = learning_rate,
+      auto_scale_lr = auto_scale_lr,
+      effective_learning_rate = eff_lr,
+      ims_per_batch = effective_ims,
+      optimizer = optimizer,
+      scheduler = scheduler,
+      freeze_at = freeze_at,
+      device = device,
+      training_duration_mins = duration_mins,
+      training_mode = training_mode
+    )
+    
+    # Add HPC-specific metadata
+    if (!is.null(hpc_host) && hpc_host != "") {
+      training_metadata$hpc_host <- hpc_host
+      training_metadata$gpus <- gpus
+    }
+    
+    # Pin the model
+    tryCatch({
+      board_to_use <- if (!is.null(model_board)) model_board else pg_board()
+      publish_model(
+        model_dir = result,
+        name = output_name,
+        board = board_to_use,
+        metadata = training_metadata,
+        include_metrics = TRUE
+      )
+      if (!is.null(model_description)) cli::cli_alert_info(model_description)
+    }, error = function(e) {
+      cli::cli_warn("Failed to publish model: {e$message}")
+    })
+  }
 
   return(result)
 }

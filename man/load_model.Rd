@@ -8,17 +8,26 @@ load_model(
   model_path = NULL,
   config_path = NULL,
   confidence = 0.5,
-  device = "cpu"
+  device = "cpu",
+  model_name = NULL,
+  version = NULL,
+  board = NULL
 )
 }
 \arguments{
-\item{model_path}{Path to trained model weights (default: 'Detectron2_Models/model_final.pth')}
+\item{model_path}{Path to trained model weights (ignored if loading from a pin)}
 
 \item{config_path}{Path to model config (default: 'Detectron2_Models/config.yaml')}
 
 \item{confidence}{Confidence threshold (default: 0.5)}
 
 \item{device}{Device to use: 'cpu', 'cuda', 'mps' (default: 'cpu')}
+
+\item{model_name}{Optional pin name to load from a board}
+
+\item{version}{Specific version to load when using pins (NULL for latest)}
+
+\item{board}{pins board to load from; defaults to \code{pg_board()}}
 }
 \value{
 PetrographyModel object

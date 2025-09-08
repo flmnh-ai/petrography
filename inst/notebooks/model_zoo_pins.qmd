@@ -1,0 +1,167 @@
+---
+title: "Petrographer Model Zoo with pins"
+author: "petrographer team"
+format:
+  html:
+    code-fold: true
+toc: true
+editor: visual
+---
+
+```{r}
+#| label: setup
+#| message: false
+#| warning: false
+library(petrographer)
+# pins is optional; load if available for richer printing in this notebook
+if (requireNamespace("pins", quietly = TRUE)) {
+  library(pins)
+}
+```
+
+## Overview
+
+This notebook shows how to create and maintain a simple "model zoo" using the pins package:
+
+- Configure a board (local folder, shared folder, S3, or Posit Connect)
+- Pin trained petrographer models and their metadata
+- Discover available models and versions
+- Load models from pins for prediction
+- Housekeeping: delete old pins
+
+pins saves versioned artifacts and handles caching. For large files (> 500MB) prefer boards like S3 or a shared drive.
+
+## Configure a Board
+
+Choose a board based on how you share models:
+
+```{r}
+# Local board (per-machine, good for experiments)
+board_local <- pg_board()
+board_local
+```
+
+```{r}
+# Shared folder (Dropbox / network drive)
+# Uncomment and set a path visible to your team
+# board_shared <- pins::board_folder("~/Dropbox/petrographer-models", versioned = TRUE)
+```
+
+```{r}
+# Amazon S3 (requires credentials via env vars)
+# board_s3 <- pins::board_s3(bucket = Sys.getenv("PETRO_S3_BUCKET"), prefix = "petrographer", versioned = TRUE)
+```
+
+```{r}
+# Posit Connect (enterprise sharing)
+# board_connect <- pins::board_connect()
+```
+
+## Pin a Trained Model
+
+Pin a model directory that contains `model_final.pth` and `config.yaml` (created by `train_model()`).
+
+```{r}
+# Example: pin an existing trained model directory
+example_model_dir <- "Detectron2_Models/shell_detector_v3"  # adjust to your model
+if (dir.exists(example_model_dir)) {
+  meta <- list(
+    notes = "Pinned from notebook",
+    owner = Sys.info()[["user"]]
+  )
+  publish_model(
+    model_dir = example_model_dir,
+    name = "shell_detector_v3",
+    board = board_local,
+    metadata = meta,
+    include_metrics = TRUE
+  )
+}
+```
+
+Pin automatically right after training by passing `publish_after_train = TRUE` to `train_model()`:
+
+```{r}
+# if (FALSE) {
+#   train_model(
+#     data_dir = "data/processed/shell_mixed",
+#     output_name = "shell_detector_v4",
+#     num_classes = 5,
+#     gpus = 1,
+#     publish_after_train = TRUE,
+#     model_board = board_local
+#   )
+# }
+```
+
+## Discover Models
+
+List pins on the board and inspect metadata:
+
+```{r}
+available <- if (requireNamespace("pins", quietly = TRUE)) pins::pin_list(board_local) else character()
+available
+```
+
+```{r}
+if (requireNamespace("pins", quietly = TRUE) && length(available)) {
+  info <- pins::pin_meta(board_local, available[[1]])
+  str(info$user)
+}
+```
+
+Search by text:
+
+```{r}
+if (requireNamespace("pins", quietly = TRUE)) {
+  res <- pins::pin_search(board_local, "shell")
+  if (!is.null(res) && "name" %in% names(res)) unique(res$name) else character()
+}
+```
+
+## Versioning
+
+Most boards support versions. With `pins`, each write creates a new version (when versioning is enabled on the board).
+
+```{r}
+if (requireNamespace("pins", quietly = TRUE) && length(available)) {
+  pins::pin_versions(board_local, available[[1]])
+}
+```
+
+## Load Models from Pins
+
+Load a pinned model either explicitly or via `load_model()` auto-detection.
+
+```{r}
+if (length(available)) {
+  gm <- get_model(available[[1]], board = board_local)
+  mdl <- load_model(model_name = available[[1]], confidence = 0.5, device = "cpu")
+}
+```
+
+## Use the Model
+
+```{r}
+# Example prediction (adjust the path to an existing image)
+# if (exists("mdl") && file.exists("data/raw/sample.jpg")) {
+#   res <- predict_image("data/raw/sample.jpg", mdl, use_slicing = TRUE)
+#   head(res)
+# }
+```
+
+## Housekeeping
+
+Delete a pin (careful: deletes all versions on boards that don’t isolate versions):
+
+```{r}
+if (FALSE && requireNamespace("pins", quietly = TRUE) && length(available) > 0) {
+  pins::pin_delete(board_local, available[[1]])
+}
+```
+
+## Tips
+
+- Prefer versioned boards (`versioned = TRUE`) so you can reproduce past runs.
+- For large models or many versions, consider S3 instead of folder boards.
+- Store concise training metadata with `publish_model()` to make discovery easier.

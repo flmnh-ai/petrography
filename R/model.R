@@ -3,17 +3,37 @@
 # ============================================================================
 
 #' Load petrography detection model
-#' @param model_path Path to trained model weights (default: 'Detectron2_Models/model_final.pth')
-#' @param config_path Path to model config (default: 'Detectron2_Models/config.yaml')
+#' @param model_path Path to trained model weights (ignored if model_name is supplied or model_path looks like a pin name)
+#' @param config_path Path to model config (ignored if loading from a pin)
 #' @param confidence Confidence threshold (default: 0.5)
 #' @param device Device to use: 'cpu', 'cuda', 'mps' (default: 'cpu')
+#' @param model_name Optional pin name to load from a board
+#' @param version Specific version to load when using pins (NULL for latest)
+#' @param board Optional pins board (defaults to pg_board())
 #' @return PetrographyModel object
 #' @export
 load_model <- function(model_path = NULL,
                        config_path = NULL,
                        confidence = 0.5,
-                       device = "cpu") {
-
+                       device = "cpu",
+                       model_name = NULL,
+                       version = NULL,
+                       board = NULL) {
+  # Resolve pin-based loading
+  if (!is.null(model_name)) {
+    b <- if (!is.null(board)) board else pg_board()
+    resolved <- get_model(model_name, version = version, board = b)
+    model_path <- resolved$model_path
+    config_path <- resolved$config_path
+  } else if (!is.null(model_path) && !fs::file_exists(model_path) && !grepl("\\.pth$", model_path)) {
+    # If a non-existent path provided, treat it as a pin name
+    b <- if (!is.null(board)) board else pg_board()
+    resolved <- get_model(model_path, version = version, board = b)
+    model_path <- resolved$model_path
+    config_path <- resolved$config_path
+  }
+  
+  # Standard file-based loading
   cache <- get_model_cache_dir()
   default_model <- fs::path(cache, "model_final.pth")
   default_config <- fs::path(cache, "config.yaml")
@@ -79,4 +99,3 @@ download_model <- function(force = FALSE) {
 
   return(list(model_path = model_path, config_path = config_path))
 }
-

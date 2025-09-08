@@ -321,3 +321,46 @@ If you use this workflow in your research, please cite:
 - [SAHI](https://github.com/obss/sahi) for sliced inference
 - [reticulate](https://rstudio.github.io/reticulate/) for R-Python integration
 - Modern R utilities: [cli](https://cli.r-lib.org/), [fs](https://fs.r-lib.org/), [glue](https://glue.tidyverse.org/)
+
+## Model Registry (pins)
+
+Use the pins package to publish and load trained models by name. This is optional and off by default.
+
+Basic flow:
+
+```r
+library(petrographer)
+
+# 1) Configure a board (defaults to local, versioned)
+board <- pg_board()  # or set PETRO_PINS_PATH or PETRO_S3_BUCKET env vars
+
+# 2) Publish a trained model directory
+publish_model(
+  model_dir = "Detectron2_Models/shell_detector_v3",
+  name = "shell_detector_v3",
+  board = board,
+  metadata = list(owner = Sys.info()[["user"]]),
+  include_metrics = TRUE
+)
+
+# 3) Load a model by name
+mdl <- load_model(model_name = "shell_detector_v3", device = "cpu")
+
+# 4) Discover pins (optional; uses pins directly)
+if (requireNamespace("pins", quietly = TRUE)) {
+  pins::pin_list(board)
+  pins::pin_meta(board, "shell_detector_v3")
+}
+```
+
+Publish automatically after training:
+
+```r
+train_model(
+  data_dir = "data/processed/shell_mixed",
+  output_name = "shell_detector_v4",
+  num_classes = 5,
+  publish_after_train = TRUE,
+  model_board = pg_board()
+)
+```
