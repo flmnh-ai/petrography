@@ -9,6 +9,7 @@
 <url><loc>https://flmnh-ai.github.io/petrographer/reference/clean_names.html</loc></url>
 <url><loc>https://flmnh-ai.github.io/petrographer/reference/enhance_results.html</loc></url>
 <url><loc>https://flmnh-ai.github.io/petrographer/reference/evaluate_training.html</loc></url>
+<url><loc>https://flmnh-ai.github.io/petrographer/reference/get_model.html</loc></url>
 <url><loc>https://flmnh-ai.github.io/petrographer/reference/get_population_stats.html</loc></url>
 <url><loc>https://flmnh-ai.github.io/petrographer/reference/hpc_authenticate.html</loc></url>
 <url><loc>https://flmnh-ai.github.io/petrographer/reference/hpc_download.html</loc></url>
@@ -17,8 +18,10 @@
 <url><loc>https://flmnh-ai.github.io/petrographer/reference/index.html</loc></url>
 <url><loc>https://flmnh-ai.github.io/petrographer/reference/load_model.html</loc></url>
 <url><loc>https://flmnh-ai.github.io/petrographer/reference/petrographer-package.html</loc></url>
+<url><loc>https://flmnh-ai.github.io/petrographer/reference/pg_board.html</loc></url>
 <url><loc>https://flmnh-ai.github.io/petrographer/reference/predict_batch.html</loc></url>
 <url><loc>https://flmnh-ai.github.io/petrographer/reference/predict_image.html</loc></url>
+<url><loc>https://flmnh-ai.github.io/petrographer/reference/publish_model.html</loc></url>
 <url><loc>https://flmnh-ai.github.io/petrographer/reference/summarize_by_image.html</loc></url>
 <url><loc>https://flmnh-ai.github.io/petrographer/reference/summarize_dataset.html</loc></url>
 <url><loc>https://flmnh-ai.github.io/petrographer/reference/train_model.html</loc></url>

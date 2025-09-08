@@ -66,7 +66,10 @@
 <span>  hpc_user <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  hpc_base_dir <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Sys.getenv.html" class="external-link">Sys.getenv</a></span><span class="op">(</span><span class="st">"PETROGRAPHER_HPC_BASE_DIR"</span>, <span class="st">""</span><span class="op">)</span>,</span>
 <span>  local_output_dir <span class="op">=</span> <span class="fu">here</span><span class="fu">::</span><span class="fu"><a href="https://here.r-lib.org/reference/here.html" class="external-link">here</a></span><span class="op">(</span><span class="st">"Detectron2_Models"</span><span class="op">)</span>,</span>
-<span>  rsync_mode <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"update"</span>, <span class="st">"mirror"</span><span class="op">)</span></span>
+<span>  rsync_mode <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"update"</span>, <span class="st">"mirror"</span><span class="op">)</span>,</span>
+<span>  publish_after_train <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  model_board <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  model_description <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -91,7 +94,7 @@
 
 
 <dt id="arg-learning-rate">learning_rate<a class="anchor" aria-label="anchor" href="#arg-learning-rate"></a></dt>
-<dd><p>Base learning rate before auto-scaling (default: 0.00025)</p></dd>
+<dd><p>Base learning rate before auto-scaling (default: 0.0025)</p></dd>
 
 
 <dt id="arg-device">device<a class="anchor" aria-label="anchor" href="#arg-device"></a></dt>
@@ -118,8 +121,7 @@ uses 2 images per GPU (global batch = 2 * gpus).</p></dd>
 
 
 <dt id="arg-num-workers">num_workers<a class="anchor" aria-label="anchor" href="#arg-num-workers"></a></dt>
-<dd><p>DataLoader workers per process/GPU. If NULL (default), uses 4 on HPC
-(per GPU) and min(4, max(1, parallel::detectCores(logical = FALSE) - 1)) locally.</p></dd>
+<dd><p>DataLoader workers per process/GPU. If NULL (default), sets to per-GPU batch size (IMS\_PER\_BATCH/gpus).</p></dd>
 
 
 <dt id="arg-freeze-at">freeze_at<a class="anchor" aria-label="anchor" href="#arg-freeze-at"></a></dt>
@@ -158,6 +160,10 @@ uses 2 images per GPU (global batch = 2 * gpus).</p></dd>
 <dd><p>Explicit milestone iters vector (overrides step_milestones_frac if provided)</p></dd>
 
 
+<dt id="arg-classwise">classwise<a class="anchor" aria-label="anchor" href="#arg-classwise"></a></dt>
+<dd><p>Log per-class AP metrics during validation if supported by your Detectron2 version (default: FALSE)</p></dd>
+
+
 <dt id="arg-gpus">gpus<a class="anchor" aria-label="anchor" href="#arg-gpus"></a></dt>
 <dd><p>Number of GPUs for HPC training (default: 1, ignored for local training)</p></dd>
 
@@ -180,6 +186,18 @@ uses 2 images per GPU (global batch = 2 * gpus).</p></dd>
 
 <dt id="arg-rsync-mode">rsync_mode<a class="anchor" aria-label="anchor" href="#arg-rsync-mode"></a></dt>
 <dd><p>Data sync mode: 'update' (default) or 'mirror' (adds –delete)</p></dd>
+
+
+<dt id="arg-publish-after-train">publish_after_train<a class="anchor" aria-label="anchor" href="#arg-publish-after-train"></a></dt>
+<dd><p>Whether to publish (pin) the trained model to a board (default: FALSE)</p></dd>
+
+
+<dt id="arg-model-board">model_board<a class="anchor" aria-label="anchor" href="#arg-model-board"></a></dt>
+<dd><p>pins board for model storage (if NULL and publish\_after\_train=TRUE, uses pg\_board())</p></dd>
+
+
+<dt id="arg-model-description">model_description<a class="anchor" aria-label="anchor" href="#arg-model-description"></a></dt>
+<dd><p>Description to include with the pinned model</p></dd>
 
 </dl></div>
     <div class="section level2">
