@@ -2,7 +2,7 @@
 % Please edit documentation in R/prediction.R
 \name{predict_image}
 \alias{predict_image}
-\title{Predict objects in a single image using loaded model}
+\title{Predict objects in a single image}
 \usage{
 predict_image(
   image_path,
@@ -33,5 +33,5 @@ predict_image(
 Tibble with detection results and morphological properties
 }
 \description{
-Predict objects in a single image using loaded model
+Predict objects in a single image
 }

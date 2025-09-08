@@ -25,7 +25,7 @@ model_path <- train_model(
   data_dir = here::here("data/processed/shell_mixed"),
   output_name = "shell_detector_v3",
   num_classes = 5
-  # Uses defaults: max_iter=2000, learning_rate=0.00025, device="cuda", eval_period=100
+  # Uses defaults: max_iter=2000, learning_rate=0.0025, device="cuda", eval_period=100
 )
 ```
 

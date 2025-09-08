@@ -64,7 +64,7 @@ We now use the optimized functions from `petrography_simple.R` which separate mo
 cat("\n== Available Analysis Functions ==\n")
 cat("• load_model() - Load detection model once for reuse\n")
 cat("• predict_image() - Analyze single image with loaded model\n")
-cat("• predict_batch() - Process multiple images efficiently\n")
+cat("• predict_images() - Process multiple images efficiently\n")
 cat("• evaluate_training() - Assess model performance\n")
 cat("• enhance_results() - Add derived metrics\n")
 cat("• summarize_by_image() - Per-image statistics\n")
@@ -280,7 +280,7 @@ for (img in demo_images) {
 cat(sprintf("Copied %d images for batch demo\n", length(demo_images)))
 
 # Run batch prediction using loaded model
-batch_result <- predict_batch(
+batch_result <- predict_images(
   input_dir = temp_batch_dir,
   model = model,
   use_slicing = config$use_slicing,

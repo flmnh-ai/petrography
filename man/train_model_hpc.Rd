@@ -22,6 +22,7 @@ train_model_hpc(
   warmup_iters,
   steps,
   classwise,
+  hpc_env,
   gpus,
   hpc_host,
   hpc_user,

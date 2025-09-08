@@ -174,7 +174,7 @@ result <- predict_image(
 )
 
 # Batch processing
-batch_result <- predict_batch(
+batch_result <- predict_images(
   input_dir = "data/raw/batch_images/",
   model = model,
   output_dir = "results/batch_analysis"
@@ -201,7 +201,7 @@ Use the analysis notebooks:
 
 ### Prediction  
 - `predict_image()` - Analyze single image with morphological analysis
-- `predict_batch()` - Process multiple images efficiently
+- `predict_images()` - Process multiple images efficiently
 
 ### Analysis
 - `enhance_results()` - Add derived morphological properties  

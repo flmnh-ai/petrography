@@ -1,8 +1,18 @@
 # Minimal pins integration for publishing and retrieving models
 
 #' Get a configured pins board for petrographer models
-#' @param config Optional board object override (rarely needed)
-#' @return A pins board object
+#'
+#' Returns a pins board configured from environment variables or defaults.
+#' Use this board with [publish_model()] and [get_model()].
+#'
+#' Configuration precedence:
+#' - `PETRO_S3_BUCKET` [+ optional `PETRO_S3_PREFIX`] → S3 board (versioned)
+#' - `PETRO_PINS_PATH` → folder board at that path (versioned)
+#' - otherwise → local board (versioned)
+#'
+#' @param config Optional board object override (rarely needed). If provided
+#'   and it inherits from a `pins_board`, it will be returned as-is.
+#' @return A `pins_board` object.
 #' @export
 pg_board <- function(config = NULL) {
   if (!requireNamespace("pins", quietly = TRUE)) {
@@ -25,12 +35,18 @@ pg_board <- function(config = NULL) {
 }
 
 #' Publish (pin) a trained model directory to a board
-#' @param model_dir Directory containing model_final.pth and config.yaml
-#' @param name Pin name to publish under
-#' @param board A pins board (default: pg_board())
-#' @param metadata Optional named list to store with the pin
-#' @param include_metrics Whether to include metrics.json if present (default TRUE)
-#' @return pins metadata (list)
+#'
+#' Publishes Detectron2 artifacts (`model_final.pth`, `config.yaml`) and, when
+#' present, `metrics.json` as a versioned files pin using [pins]. A small
+#' `petrographer_metadata.json` is written into the model directory and included
+#' for portability. Additional metadata is attached to the pin via `metadata`.
+#'
+#' @param model_dir Directory containing `model_final.pth` and `config.yaml`.
+#' @param name Pin name to publish under.
+#' @param board A pins board (defaults to [pg_board()]).
+#' @param metadata Optional named list to store as pin metadata.
+#' @param include_metrics Whether to include `metrics.json` if present (default: TRUE).
+#' @return A pin metadata list as returned by `pins::pin_meta()`.
 #' @export
 publish_model <- function(model_dir, name, board = pg_board(), metadata = list(), include_metrics = TRUE) {
   if (!requireNamespace("pins", quietly = TRUE)) {
@@ -68,10 +84,14 @@ publish_model <- function(model_dir, name, board = pg_board(), metadata = list()
 }
 
 #' Retrieve a model pin and return resolved file paths
-#' @param name Pin name
-#' @param version Optional version id (NULL = latest)
-#' @param board A pins board (default: pg_board())
-#' @return List with fields model_path, config_path, pin_meta
+#'
+#' Downloads model artifacts from a pins board and returns resolved paths to
+#' `model_final.pth` and `config.yaml`, along with pin metadata.
+#'
+#' @param name Pin name.
+#' @param version Optional version id (NULL = latest).
+#' @param board A pins board (defaults to [pg_board()]).
+#' @return A list with fields `model_path`, `config_path`, and `pin_meta`.
 #' @export
 get_model <- function(name, version = NULL, board = pg_board()) {
   if (!requireNamespace("pins", quietly = TRUE)) {

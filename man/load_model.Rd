@@ -15,23 +15,26 @@ load_model(
 )
 }
 \arguments{
-\item{model_path}{Path to trained model weights (ignored if loading from a pin)}
+\item{model_path}{Path to trained model weights (ignored if \code{model_name} is supplied or \code{model_path} appears to be a pin name).}
 
-\item{config_path}{Path to model config (default: 'Detectron2_Models/config.yaml')}
+\item{config_path}{Path to model config (ignored if loading from a pin).}
 
-\item{confidence}{Confidence threshold (default: 0.5)}
+\item{confidence}{Confidence threshold (default: 0.5).}
 
-\item{device}{Device to use: 'cpu', 'cuda', 'mps' (default: 'cpu')}
+\item{device}{Device to use: 'cpu', 'cuda', 'mps' (default: 'cpu').}
 
-\item{model_name}{Optional pin name to load from a board}
+\item{model_name}{Optional pin name to load from a board.}
 
-\item{version}{Specific version to load when using pins (NULL for latest)}
+\item{version}{Specific version to load when using pins (NULL for latest).}
 
-\item{board}{pins board to load from; defaults to \code{pg_board()}}
+\item{board}{Optional pins board (defaults to \code{\link[=pg_board]{pg_board()}}).}
 }
 \value{
-PetrographyModel object
+A \code{PetrographyModel} object.
 }
 \description{
-Load petrography detection model
+Loads a Detectron2/SAHI model either from file paths or by pin name via
+the pins registry. When \code{model_name} is supplied (or \code{model_path} does not
+exist and does not end with \code{.pth}), the model is retrieved from a board
+using \code{\link[=get_model]{get_model()}}.
 }

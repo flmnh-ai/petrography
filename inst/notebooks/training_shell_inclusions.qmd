@@ -28,8 +28,7 @@ model_path <- train_model(
   output_name = "shell_inclusions_v1",
   num_classes = 3,
   gpus = 3,
-  ims_per_batch = 6,
-  max_iter = 200
+  eval_period = 500
 )
 ```
 
@@ -92,6 +91,19 @@ test_result <- predict_image(
 cat(sprintf("Test image: %s\n", path_file(test_image)))
 cat(sprintf("Objects detected: %d\n", nrow(test_result)))
 cat(sprintf("Mean confidence: %.3f\n", mean(test_result$confidence)))
+```
+
+```{r}
+library(magick)
+pred_image <- test_image |>
+  path_file() |>
+  path_ext_remove() |>
+  paste0('_prediction.png')
+
+image_read(test_image) |> plot()
+here('results/inclusions_shell', pred_image) |>
+  image_read() |>
+  plot()
 ```
 
 ```{r}

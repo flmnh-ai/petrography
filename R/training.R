@@ -3,39 +3,43 @@
 # ============================================================================
 
 #' Train a new petrography detection model
-#' @param data_dir Local directory containing train and val subdirectories with COCO annotations
-#' @param output_name Name for the trained model (required)
-#' @param max_iter Maximum training iterations (default: 2000)
-#' @param learning_rate Base learning rate before auto-scaling (default: 0.0025)
-#' @param num_classes Number of object classes (required)
-#' @param device Device for local training: 'cpu', 'cuda', 'mps' (default: 'cuda')
-#' @param eval_period Validation evaluation frequency in iterations (default: 100)
-#' @param checkpoint_period Checkpoint saving frequency (0=final only, >0=every N iterations, default: 0)
-#' @param ims_per_batch Total images per batch across all devices. If NA (default),
-#'   uses 2 images per GPU (global batch = 2 * gpus).
-#' @param auto_scale_lr Automatically scale learning rate by number of GPUs
-#'   (effective LR = learning_rate * gpus). Set FALSE to use learning_rate as-is.
-#'   (default: TRUE)
-#' @param num_workers DataLoader workers per process/GPU. If NULL (default), sets to per-GPU batch size (IMS_PER_BATCH/gpus).
-#' @param freeze_at Backbone freeze level: 0 (none), 2 (default small-data), 3 (freeze more)
-#' @param optimizer Optimizer to use: 'SGD' or 'AdamW' (default: 'SGD')
-#' @param weight_decay Weight decay (L2/AdamW). If NULL, default is 1e-4 for SGD and 0.05 for AdamW
-#' @param backbone_multiplier LR multiplier applied to backbone params when unfrozen (default: 0.1)
-#' @param scheduler LR scheduler: 'multistep' (default) or 'cosine'
-#' @param warmup_frac Fraction of max_iter used for warmup (default: 0.1). Ignored if warmup_iters provided
-#' @param warmup_iters Explicit warmup iters. If NULL, computed from warmup_frac
-#' @param step_milestones_frac Milestones as fractions of max_iter for multistep (default: c(0.75, 0.9))
-#' @param step_milestones Explicit milestone iters vector (overrides step_milestones_frac if provided)
-#' @param gpus Number of GPUs for HPC training (default: 1, ignored for local training)
-#' @param hpc_host SSH hostname for HPC training (default: PETROGRAPHER_HPC_HOST env var, or "" for local training)
-#' @param hpc_user Username for HPC (default: NULL)
-#' @param hpc_base_dir Remote base directory on HPC (default: PETROGRAPHER_HPC_BASE_DIR env var)
-#' @param local_output_dir Local directory to save trained model (default: "Detectron2_Models")
-#' @param rsync_mode Data sync mode: 'update' (default) or 'mirror' (adds --delete)
-#' @param publish_after_train Whether to publish (pin) the trained model to a board (default: FALSE)
-#' @param model_board pins board for model storage (if NULL and publish_after_train=TRUE, uses pg_board())
-#' @param model_description Description for pinned model
-#' @return Path to trained model directory
+#'
+#' Orchestrates local or HPC training using Detectron2. R computes batch size,
+#' workers, learning rate scaling, schedules, and passes final values to the
+#' Python trainer. Optionally publishes the resulting model to a pins board.
+#'
+#' @param data_dir Directory containing `train/` and `val/` subdirectories with COCO annotations.
+#' @param output_name Name for the trained model (used for artifact directories and pin names).
+#' @param max_iter Maximum training iterations (default: 2000).
+#' @param learning_rate Base learning rate before auto-scaling (default: 0.0025).
+#' @param num_classes Number of object classes.
+#' @param device Device for local training: 'cpu', 'cuda', 'mps' (default: 'cuda').
+#' @param eval_period Validation evaluation frequency in iterations (default: 100).
+#' @param checkpoint_period Checkpoint saving frequency (0 = final only; > 0 = every N iters).
+#' @param ims_per_batch Total images per batch across all devices. If NA (default), uses 2 images per GPU.
+#' @param auto_scale_lr Automatically scale learning rate by number of GPUs (effective LR = learning_rate * gpus).
+#' @param num_workers DataLoader workers per process/GPU. If NULL (default), set to per-GPU batch size.
+#' @param freeze_at Backbone freeze level: 0 (none), 2 (default small-data), 3 (freeze more).
+#' @param optimizer Optimizer to use: 'SGD' or 'AdamW' (default: 'SGD').
+#' @param weight_decay Weight decay (L2/AdamW). If NULL, default is 1e-4 for SGD and 0.05 for AdamW.
+#' @param backbone_multiplier LR multiplier applied to backbone params when unfrozen (default: 0.1).
+#' @param scheduler LR scheduler: 'multistep' (default) or 'cosine'.
+#' @param warmup_frac Fraction of max_iter used for warmup (default: 0.1). Ignored if warmup_iters provided.
+#' @param warmup_iters Explicit warmup iters. If NULL, computed from warmup_frac.
+#' @param step_milestones_frac Milestones as fractions of max_iter for multistep (default: c(0.75, 0.9)).
+#' @param step_milestones Explicit milestone iters vector (overrides fractions if provided).
+#' @param classwise Log per-class AP metrics during validation if supported (default: FALSE).
+#' @param hpc_env Character vector of SLURM script preamble lines (e.g., module loads). If NULL, no preamble is added.
+#' @param gpus Number of GPUs for HPC training (default: 1; ignored for local training).
+#' @param hpc_host SSH hostname for HPC training (default: `PETROGRAPHER_HPC_HOST`; empty for local).
+#' @param hpc_user Username for HPC (default: NULL).
+#' @param hpc_base_dir Remote base directory on HPC (default: `PETROGRAPHER_HPC_BASE_DIR`).
+#' @param local_output_dir Local directory to save trained model (default: `Detectron2_Models`).
+#' @param rsync_mode Data sync mode: 'update' (default) or 'mirror' (adds --delete).
+#' @param publish_after_train Whether to publish (pin) the trained model to a board.
+#' @param model_board pins board for model storage (if NULL and `publish_after_train=TRUE`, uses [pg_board()]).
+#' @param model_description Optional description to include with the published model.
+#' @return Path to the trained model directory.
 #' @export
 train_model <- function(data_dir,
                        output_name,
@@ -58,6 +62,7 @@ train_model <- function(data_dir,
                        step_milestones_frac = c(0.75, 0.9),
                        step_milestones = NULL,
                        classwise = FALSE,
+                       hpc_env = NULL,
                        gpus = 1,
                        hpc_host = Sys.getenv("PETROGRAPHER_HPC_HOST", ""),
                        hpc_user = NULL,
@@ -201,7 +206,7 @@ train_model <- function(data_dir,
     result <- train_model_hpc(
       data_dir, output_name, max_iter, eff_lr, num_classes, eval_period, checkpoint_period,
       effective_ims, num_workers, freeze_at, optimizer, if (is.null(weight_decay)) if (optimizer == "AdamW") 0.05 else 1e-4 else weight_decay,
-      backbone_multiplier, scheduler, warmup, steps, classwise, gpus, hpc_host, hpc_user, hpc_base_dir, local_output_dir
+      backbone_multiplier, scheduler, warmup, steps, classwise, hpc_env, gpus, hpc_host, hpc_user, hpc_base_dir, local_output_dir
     )
   }
 
@@ -333,7 +338,7 @@ train_model_local <- function(data_dir, output_name, max_iter, learning_rate, nu
 #' @keywords internal
 train_model_hpc <- function(data_dir, output_name, max_iter, learning_rate, num_classes, eval_period, checkpoint_period,
                            ims_per_batch, num_workers, freeze_at, optimizer, weight_decay, backbone_multiplier,
-                           scheduler, warmup_iters, steps, classwise, gpus, hpc_host, hpc_user, hpc_base_dir, local_output_dir) {
+                           scheduler, warmup_iters, steps, classwise, hpc_env, gpus, hpc_host, hpc_user, hpc_base_dir, local_output_dir) {
 
   if (is.null(hpc_base_dir) || hpc_base_dir == "") {
     cli::cli_abort("Missing `hpc_base_dir`: please specify the base path for training files on your HPC system or set PETROGRAPHER_HPC_BASE_DIR environment variable.")
@@ -370,7 +375,7 @@ train_model_hpc <- function(data_dir, output_name, max_iter, learning_rate, num_
   target <- hpc_authenticate(hpc_host, hpc_user)
 
   cli::cli_alert_info("Uploading data and submitting job...")
-  job_info <- hpc_sync_and_submit(target, data_dir, hpc_base_dir, output_name, training_params, gpus)
+  job_info <- hpc_sync_and_submit(target, data_dir, hpc_base_dir, output_name, training_params, gpus, hpc_env)
 
   hpc_monitor(target, job_info$job_id, job_info$remote_base)
 

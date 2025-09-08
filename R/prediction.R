@@ -2,7 +2,7 @@
 # Core Prediction Functions - Using Direct Reticulate Calls
 # ============================================================================
 
-#' Predict objects in a single image using loaded model
+#' Predict objects in a single image
 #' @param image_path Path to image file
 #' @param model PetrographyModel object from load_model()
 #' @param use_slicing Whether to use SAHI sliced inference (default: TRUE)
@@ -72,7 +72,7 @@ predict_image <- function(image_path, model, use_slicing = TRUE,
     enhance_results()
 }
 
-#' Predict objects in multiple images using SAHI native batch prediction
+#' Predict objects in multiple images (directory)
 #' @param input_dir Directory containing images
 #' @param model PetrographyModel object from load_model()
 #' @param use_slicing Whether to use SAHI sliced inference (default: TRUE)
@@ -82,10 +82,10 @@ predict_image <- function(image_path, model, use_slicing = TRUE,
 #' @param save_visualizations Whether to save prediction visualizations (default: TRUE)
 #' @return Tibble with detection results for all images
 #' @export
-predict_batch <- function(input_dir, model, use_slicing = TRUE,
-                         slice_size = 512, overlap = 0.2,
-                         output_dir = "results/batch",
-                         save_visualizations = TRUE) {
+predict_images <- function(input_dir, model, use_slicing = TRUE,
+                          slice_size = 512, overlap = 0.2,
+                          output_dir = "results/batch",
+                          save_visualizations = TRUE) {
 
   # Validate inputs
   if (!fs::dir_exists(input_dir)) {
@@ -171,58 +171,13 @@ evaluate_training <- function(model_dir = "Detectron2_Models",
   metrics_file <- fs::path(model_dir, "metrics.json")
   log_file <- fs::path(model_dir, "log.txt")
 
-  training_data <- tibble::tibble()
-
+  parsed <- list(training = tibble::tibble(), validation = tibble::tibble(), classwise = tibble::tibble())
   if (fs::file_exists(metrics_file)) {
-    # Read JSONL metrics using jsonlite (no pandas)
-    training_data <- tryCatch({
-      con <- file(metrics_file, open = "r")
-      on.exit(close(con), add = TRUE)
-      df <- jsonlite::stream_in(con, verbose = FALSE)
-      tibble::as_tibble(df) |>
-        clean_names()
-    }, error = function(e) tibble::tibble())
-
-    if (nrow(training_data) > 0) {
-      # Identify validation rows (have bbox or segm metrics)
-      validation_rows <- training_data |>
-        dplyr::filter(
-          dplyr::if_any(dplyr::contains("bbox"), ~ !is.na(.)) |
-          dplyr::if_any(dplyr::contains("segm"), ~ !is.na(.))
-        )
-
-      # Training metrics: rows without validation aggregate columns
-      training_metrics <- training_data |>
-        dplyr::filter(!dplyr::row_number() %in% dplyr::row_number(validation_rows))
-
-      # Combined validation metrics (bbox + segm)
-      validation_metrics <- validation_rows |>
-        dplyr::select(
-          iteration,
-          dplyr::contains("bbox"),
-          dplyr::contains("segm")
-        )
-
-      # Save to CSV files
-      readr::write_csv(training_metrics, fs::path(output_dir, "training_metrics.csv"))
-      if (nrow(validation_metrics) > 0) {
-        readr::write_csv(validation_metrics, fs::path(output_dir, "validation_metrics.csv"))
-      }
-
-      # Per-class metrics, if present (columns like ap_<class>)
-      classwise_cols <- grep("^ap_", names(training_data), value = TRUE)
-      if (length(classwise_cols) > 0) {
-        validation_classwise <- validation_rows |>
-          dplyr::select(iteration, dplyr::all_of(classwise_cols))
-        if (nrow(validation_classwise) > 0) {
-          readr::write_csv(validation_classwise, fs::path(output_dir, "validation_classwise.csv"))
-        }
-      }
-
-      # Update training_data to include both
-      training_data <- training_metrics
-    }
-
+    parsed <- parse_metrics(metrics_file)
+    # Save to CSV files
+    readr::write_csv(parsed$training, fs::path(output_dir, "training_metrics.csv"))
+    if (nrow(parsed$validation) > 0) readr::write_csv(parsed$validation, fs::path(output_dir, "validation_metrics.csv"))
+    if (nrow(parsed$classwise) > 0) readr::write_csv(parsed$classwise, fs::path(output_dir, "validation_classwise.csv"))
   } else if (fs::file_exists(log_file)) {
     # Could add log parsing here if needed
     warning("Only log.txt found - metrics.json preferred for analysis")
@@ -230,27 +185,23 @@ evaluate_training <- function(model_dir = "Detectron2_Models",
 
   # Generate enhanced summary
   summary <- list(
-    total_iterations = if (nrow(training_data) > 0) max(training_data$iteration, na.rm = TRUE) else 0,
-    metrics_available = nrow(training_data) > 0,
-    validation_metrics_available = exists("validation_metrics") && nrow(validation_metrics) > 0,
-    validation_segm_available = exists("validation_metrics") && any(grepl("segm", names(validation_metrics))),
-    classwise_available = exists("validation_classwise") && nrow(validation_classwise) > 0,
-    validation_evaluations = if (exists("validation_metrics")) nrow(validation_metrics) else 0
+    total_iterations = if (nrow(parsed$training) > 0) max(parsed$training$iteration, na.rm = TRUE) else 0,
+    metrics_available = nrow(parsed$training) > 0,
+    validation_metrics_available = nrow(parsed$validation) > 0,
+    validation_segm_available = any(grepl("segm", names(parsed$validation))),
+    classwise_available = nrow(parsed$classwise) > 0,
+    validation_evaluations = nrow(parsed$validation)
   )
 
   result <- list(
-    training_data = training_data,
+    training_data = parsed$training,
     summary = summary,
     output_dir = output_dir
   )
 
   # Add validation data if available
-  if (exists("validation_metrics") && nrow(validation_metrics) > 0) {
-    result$validation_data <- validation_metrics
-  }
-  if (exists("validation_classwise") && nrow(validation_classwise) > 0) {
-    result$validation_classwise <- validation_classwise
-  }
+  if (nrow(parsed$validation) > 0) result$validation_data <- parsed$validation
+  if (nrow(parsed$classwise) > 0) result$validation_classwise <- parsed$classwise
   
   # Print summary
   cli::cli_dl(c(

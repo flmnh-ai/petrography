@@ -41,8 +41,20 @@ hpc_authenticate <- function(hpc_host = "hpg", hpc_user = NULL) {
 }
 
 #' Upload data/code and submit SLURM job
+#'
+#' Builds remote directories, syncs data and code via rsync over an SSH
+#' multiplexed connection, and submits a SLURM job. Optional `hpc_env`
+#' preamble lines can be injected to load modules or set environment variables.
+#'
+#' @param target SSH target (e.g., "user@host" or a configured host).
+#' @param data_dir Local dataset directory.
+#' @param hpc_base_dir Remote base directory (the job will use a timestamped subdir).
+#' @param output_name Output/model name (used for remote subdirectory).
+#' @param training_params Character vector of CLI args passed to the Python trainer.
+#' @param gpus Number of GPUs to request.
+#' @param hpc_env Optional character vector of preamble lines (e.g., module loads).
 #' @keywords internal
-hpc_sync_and_submit <- function(target, data_dir, hpc_base_dir, output_name, training_params, gpus = 1) {
+hpc_sync_and_submit <- function(target, data_dir, hpc_base_dir, output_name, training_params, gpus = 1, hpc_env = NULL) {
   timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
   remote_base <- fs::path(hpc_base_dir, output_name, timestamp)
 
@@ -80,6 +92,12 @@ hpc_sync_and_submit <- function(target, data_dir, hpc_base_dir, output_name, tra
   cpus <- if (gpus > 1) gpus * 4 else 4
   mem <- if (gpus > 1) paste0(gpus * 16, "gb") else "16gb"
 
+  # Optional environment/preamble lines
+  preamble <- ""
+  if (!is.null(hpc_env) && length(hpc_env) > 0) {
+    preamble <- paste(paste(hpc_env, collapse = "\n"), "\n", sep = "")
+  }
+
   slurm_script <- paste0("#!/bin/bash\n",
     "#SBATCH --job-name=petrographer_train\n",
     "#SBATCH --time=02:00:00\n",
@@ -88,7 +106,7 @@ hpc_sync_and_submit <- function(target, data_dir, hpc_base_dir, output_name, tra
     "#SBATCH --gpus=", gpus, "\n",
     "#SBATCH --output=%x_%j.out\n",
     "#SBATCH --error=%x_%j.err\n",
-    "module purge && module load detectron2\n",
+    preamble,
     "cd ", shQuote(remote_base), "\n",
     "python src/train.py ", paste(training_params, collapse = " "))
 
