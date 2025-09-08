@@ -68,6 +68,8 @@ Python trainer. Optionally publishes the resulting model to a pins board.</p>
 <span>  step_milestones <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  classwise <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  hpc_env <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  hpc_cpus_per_task <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  hpc_mem <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  gpus <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  hpc_host <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Sys.getenv.html" class="external-link">Sys.getenv</a></span><span class="op">(</span><span class="st">"PETROGRAPHER_HPC_HOST"</span>, <span class="st">""</span><span class="op">)</span>,</span>
 <span>  hpc_user <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -170,6 +172,14 @@ Python trainer. Optionally publishes the resulting model to a pins board.</p>
 
 <dt id="arg-hpc-env">hpc_env<a class="anchor" aria-label="anchor" href="#arg-hpc-env"></a></dt>
 <dd><p>Character vector of SLURM script preamble lines (e.g., module loads). If NULL, no preamble is added.</p></dd>
+
+
+<dt id="arg-hpc-cpus-per-task">hpc_cpus_per_task<a class="anchor" aria-label="anchor" href="#arg-hpc-cpus-per-task"></a></dt>
+<dd><p>Override CPUs requested for the SLURM task (maps to <code>--cpus-per-task</code>). Default is 4 per GPU (<code>gpus × 4</code> when <code>gpus &gt; 1</code>).</p></dd>
+
+
+<dt id="arg-hpc-mem">hpc_mem<a class="anchor" aria-label="anchor" href="#arg-hpc-mem"></a></dt>
+<dd><p>Override memory (maps to <code>--mem</code>), e.g., "96gb". Default is 24 GB per GPU.</p></dd>
 
 
 <dt id="arg-gpus">gpus<a class="anchor" aria-label="anchor" href="#arg-gpus"></a></dt>
