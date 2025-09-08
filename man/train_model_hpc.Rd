@@ -23,6 +23,8 @@ train_model_hpc(
   steps,
   classwise,
   hpc_env,
+  hpc_cpus_per_task,
+  hpc_mem,
   gpus,
   hpc_host,
   hpc_user,

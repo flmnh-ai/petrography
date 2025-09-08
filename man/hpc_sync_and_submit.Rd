@@ -11,7 +11,9 @@ hpc_sync_and_submit(
   output_name,
   training_params,
   gpus = 1,
-  hpc_env = NULL
+  hpc_env = NULL,
+  hpc_cpus_per_task = NULL,
+  hpc_mem = NULL
 )
 }
 \arguments{

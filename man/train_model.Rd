@@ -27,6 +27,8 @@ train_model(
   step_milestones = NULL,
   classwise = FALSE,
   hpc_env = NULL,
+  hpc_cpus_per_task = NULL,
+  hpc_mem = NULL,
   gpus = 1,
   hpc_host = Sys.getenv("PETROGRAPHER_HPC_HOST", ""),
   hpc_user = NULL,
@@ -82,6 +84,10 @@ train_model(
 \item{classwise}{Log per-class AP metrics during validation if supported (default: FALSE).}
 
 \item{hpc_env}{Character vector of SLURM script preamble lines (e.g., module loads). If NULL, no preamble is added.}
+
+\item{hpc_cpus_per_task}{Override CPUs requested for the SLURM task (maps to \verb{--cpus-per-task}). Default is 4 per GPU (\code{gpus × 4} when \code{gpus > 1}).}
+
+\item{hpc_mem}{Override memory (maps to \verb{--mem}), e.g., "96gb". Default is 24 GB per GPU.}
 
 \item{gpus}{Number of GPUs for HPC training (default: 1; ignored for local training).}
 

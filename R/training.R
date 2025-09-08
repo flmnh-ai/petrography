@@ -63,6 +63,8 @@ train_model <- function(data_dir,
                        step_milestones = NULL,
                        classwise = FALSE,
                        hpc_env = NULL,
+                       hpc_cpus_per_task = NULL,
+                       hpc_mem = NULL,
                        gpus = 1,
                        hpc_host = Sys.getenv("PETROGRAPHER_HPC_HOST", ""),
                        hpc_user = NULL,
@@ -206,7 +208,7 @@ train_model <- function(data_dir,
     result <- train_model_hpc(
       data_dir, output_name, max_iter, eff_lr, num_classes, eval_period, checkpoint_period,
       effective_ims, num_workers, freeze_at, optimizer, if (is.null(weight_decay)) if (optimizer == "AdamW") 0.05 else 1e-4 else weight_decay,
-      backbone_multiplier, scheduler, warmup, steps, classwise, hpc_env, gpus, hpc_host, hpc_user, hpc_base_dir, local_output_dir
+      backbone_multiplier, scheduler, warmup, steps, classwise, hpc_env, hpc_cpus_per_task, hpc_mem, gpus, hpc_host, hpc_user, hpc_base_dir, local_output_dir
     )
   }
 
@@ -338,7 +340,7 @@ train_model_local <- function(data_dir, output_name, max_iter, learning_rate, nu
 #' @keywords internal
 train_model_hpc <- function(data_dir, output_name, max_iter, learning_rate, num_classes, eval_period, checkpoint_period,
                            ims_per_batch, num_workers, freeze_at, optimizer, weight_decay, backbone_multiplier,
-                           scheduler, warmup_iters, steps, classwise, hpc_env, gpus, hpc_host, hpc_user, hpc_base_dir, local_output_dir) {
+                           scheduler, warmup_iters, steps, classwise, hpc_env, hpc_cpus_per_task, hpc_mem, gpus, hpc_host, hpc_user, hpc_base_dir, local_output_dir) {
 
   if (is.null(hpc_base_dir) || hpc_base_dir == "") {
     cli::cli_abort("Missing `hpc_base_dir`: please specify the base path for training files on your HPC system or set PETROGRAPHER_HPC_BASE_DIR environment variable.")
@@ -375,7 +377,7 @@ train_model_hpc <- function(data_dir, output_name, max_iter, learning_rate, num_
   target <- hpc_authenticate(hpc_host, hpc_user)
 
   cli::cli_alert_info("Uploading data and submitting job...")
-  job_info <- hpc_sync_and_submit(target, data_dir, hpc_base_dir, output_name, training_params, gpus, hpc_env)
+  job_info <- hpc_sync_and_submit(target, data_dir, hpc_base_dir, output_name, training_params, gpus, hpc_env, hpc_cpus_per_task, hpc_mem)
 
   hpc_monitor(target, job_info$job_id, job_info$remote_base)
 

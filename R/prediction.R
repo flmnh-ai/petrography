@@ -209,12 +209,12 @@ evaluate_training <- function(model_dir = "Detectron2_Models",
     "Validation evaluations" = summary$validation_evaluations,
     "Segm metrics available" = if (isTRUE(summary$validation_segm_available)) "yes" else "no",
     "Classwise metrics available" = if (isTRUE(summary$classwise_available)) "yes" else "no",
-    "Training records" = nrow(training_data),
+    "Training records" = nrow(parsed$training),
     "Output directory" = output_dir
   ))
   
-  if (nrow(training_data) > 0) {
-    final_metrics <- tail(training_data, 1)
+  if (nrow(parsed$training) > 0) {
+    final_metrics <- tail(parsed$training, 1)
     if ("total_loss" %in% names(final_metrics)) {
       cli::cli_alert_info("Final training loss: {round(final_metrics$total_loss, 4)}")
     }

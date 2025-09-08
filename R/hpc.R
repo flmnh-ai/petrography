@@ -54,7 +54,7 @@ hpc_authenticate <- function(hpc_host = "hpg", hpc_user = NULL) {
 #' @param gpus Number of GPUs to request.
 #' @param hpc_env Optional character vector of preamble lines (e.g., module loads).
 #' @keywords internal
-hpc_sync_and_submit <- function(target, data_dir, hpc_base_dir, output_name, training_params, gpus = 1, hpc_env = NULL) {
+hpc_sync_and_submit <- function(target, data_dir, hpc_base_dir, output_name, training_params, gpus = 1, hpc_env = NULL, hpc_cpus_per_task = NULL, hpc_mem = NULL) {
   timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
   remote_base <- fs::path(hpc_base_dir, output_name, timestamp)
 
@@ -88,9 +88,9 @@ hpc_sync_and_submit <- function(target, data_dir, hpc_base_dir, output_name, tra
   ), timeout = Inf, spinner = TRUE, error_on_status = TRUE)
 
   # Generate SLURM script inline
-  # Adjust resources based on GPU count
-  cpus <- if (gpus > 1) gpus * 4 else 4
-  mem <- if (gpus > 1) paste0(gpus * 16, "gb") else "16gb"
+  # Adjust resources based on GPU count or explicit overrides
+  cpus <- if (!is.null(hpc_cpus_per_task)) as.integer(hpc_cpus_per_task) else if (gpus > 1) gpus * 4 else 4
+  mem <- if (!is.null(hpc_mem)) hpc_mem else if (gpus > 1) paste0(gpus * 24, "gb") else "24gb"
 
   # Environment/preamble lines
   # Default to your exact conda activation sequence
@@ -109,6 +109,7 @@ hpc_sync_and_submit <- function(target, data_dir, hpc_base_dir, output_name, tra
     "#SBATCH --time=02:00:00\n",
     "#SBATCH --cpus-per-task=", cpus, "\n",
     "#SBATCH --mem=", mem, "\n",
+    "#SBATCH --partition=hpg-b200\n",
     "#SBATCH --gpus=", gpus, "\n",
     "#SBATCH --output=%x_%j.out\n",
     "#SBATCH --error=%x_%j.err\n",
